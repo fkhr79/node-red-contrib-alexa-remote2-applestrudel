@@ -323,16 +323,116 @@ module.exports = function (RED) {
 		this.warnCb = tools.nodeGetWarnCb(this);
 		this.errorCb = tools.nodeGetErrorCb(this);
 
+		this.authDebugLogDir = '/tmp/ct103-auth-observe';
+		this.authDebugLogFile = this.authDebugLogDir + '/authdbg.jsonl';
+		this.authDebugSensitiveKey = key => {
+			const text = String(key || '');
+			if (/cookieFile/i.test(text)) return false;
+			return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
+		};
+		this.authDebugShape = (value, depth = 0, key = '') => {
+			if (value === undefined) return { type: 'undefined', present: false };
+			if (value === null) return { type: 'null', present: false };
+			if (this.authDebugSensitiveKey(key)) {
+				const text = typeof value === 'string' ? value : JSON.stringify(value);
+				return { type: typeof value, present: !!value, length: text ? text.length : 0 };
+			}
+			if (typeof value === 'string') return { type: 'string', present: value.length > 0, length: value.length, value: value.length <= 160 ? value : value.slice(0, 160) };
+			if (typeof value === 'number' || typeof value === 'boolean') return value;
+			if (Array.isArray(value)) return { type: 'array', length: value.length, sample: depth < 1 ? value.slice(0, 6).map(v => this.authDebugShape(v, depth + 1)) : undefined };
+			if (typeof value === 'object') {
+				const keys = Object.keys(value).sort();
+				const shaped = { type: 'object', keys };
+				if (depth < 2) {
+					shaped.values = {};
+					for (const childKey of keys) shaped.values[childKey] = this.authDebugShape(value[childKey], depth + 1, childKey);
+				}
+				return shaped;
+			}
+			return { type: typeof value, value: String(value) };
+		};
+		this.authDebugSanitizeText = value => String(value)
+			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
+			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
+			.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
+			.replace(/\b((?:session-id(?:-time)?|session-token|csm-hit|ubid-[A-Za-z0-9-]+|x-[A-Za-z0-9-]+|at-[A-Za-z0-9-]+|sess-at-[A-Za-z0-9-]+|lc-[A-Za-z0-9-]+|i18n-prefs))=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
+			.replace(/\b(Atza\|)[A-Za-z0-9._~+/=-]+/g, '$1[AUTHDBG_MASKED]')
+			.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]');
+		this.authDebugWrite = (event, details = {}) => {
+			try {
+				fs.mkdirSync(this.authDebugLogDir, { recursive: true });
+				const entry = {
+					ts: new Date().toISOString(),
+					component: 'node-red-account',
+					event,
+					details: this.authDebugShape(details)
+				};
+				fs.appendFileSync(this.authDebugLogFile, JSON.stringify(entry) + '\n', 'utf8');
+			} catch (_err) {
+				// observation must never change auth flow
+			}
+		};
+		this.authDebugLogger = line => {
+			const sanitized = this.authDebugSanitizeText(line);
+			try {
+				fs.mkdirSync(this.authDebugLogDir, { recursive: true });
+				fs.appendFileSync(this.authDebugLogFile, JSON.stringify({
+					ts: new Date().toISOString(),
+					component: 'library',
+					event: 'logger',
+					line: sanitized
+				}) + '\n', 'utf8');
+			} catch (_err) {
+				// observation must never change auth flow
+			}
+			this.debugCb(sanitized);
+		};
+		['log', 'debug', 'info', 'warn', 'error'].forEach(level => {
+			this.authDebugLogger[level] = this.authDebugLogger;
+		});
+		this.authDebugWrite('account.constructed', {
+			name: this.name,
+			authMethod: this.authMethod,
+			proxyOwnIp: this.proxyOwnIp,
+			proxyPort: this.proxyPort,
+			cookieFile: this.cookieFile,
+			amazonPage: this.amazonPage,
+			acceptLanguage: this.acceptLanguage,
+			userAgent: this.userAgent,
+			autoInit: this.autoInit
+		});
+
 		this.refreshTimeoutStartTime = null;
 		this.refreshTimeout = null;
 		this.errorMessages = {};
 		this.ui = {};
 		this.builders = {};
 		this.persistCookieData = () => {
-			if (this.authMethod !== 'proxy' || !this.cookieFile || !this.alexa || !this.alexa.cookieData) return;
+			this.authDebugWrite('account.persist.enter', {
+				authMethod: this.authMethod,
+				cookieFile: this.cookieFile,
+				hasAlexa: !!this.alexa,
+				cookieData: this.alexa && this.alexa.cookieData
+			});
+			if (this.authMethod !== 'proxy' || !this.cookieFile || !this.alexa || !this.alexa.cookieData) {
+				this.authDebugWrite('account.persist.skip', {
+					authMethod: this.authMethod,
+					hasCookieFile: !!this.cookieFile,
+					hasAlexa: !!this.alexa,
+					hasCookieData: !!(this.alexa && this.alexa.cookieData)
+				});
+				return;
+			}
 			const json = JSON.stringify(this.alexa.cookieData);
-			try { fs.writeFileSync(this.cookieFile, json, 'utf8'); }
-			catch (error) { this.warnCb(error); }
+			try {
+				fs.writeFileSync(this.cookieFile, json, 'utf8');
+				const stat = fs.statSync(this.cookieFile);
+				this.authDebugWrite('account.persist.written', { cookieFile: this.cookieFile, bytes: stat.size, mtimeMs: stat.mtimeMs });
+			}
+			catch (error) {
+				this.authDebugWrite('account.persist.error', { message: error && error.message, code: error && error.code });
+				this.warnCb(error);
+			}
 		};
 		this.attachAlexaHandlers = () => {
 			if (!this.alexa) return;
@@ -430,7 +530,7 @@ module.exports = function (RED) {
 
 			let config = {};
 			tools.assign(config, ['proxyOwnIp', 'proxyPort', 'alexaServiceHost', 'pushDispatchHost', 'amazonPage', 'acceptLanguage', 'onKeywordInLanguage', 'userAgent', 'usePushConnection', 'autoQueryActivityOnTrigger'], this);
-			config.logger = this.debugCb;
+			config.logger = this.authDebugLogger;
 			config.refreshCookieInterval = 0;
 			config.proxyLogLevel = 'warn';
 			config.bluetooth = false;
@@ -444,6 +544,13 @@ module.exports = function (RED) {
 					const cookieData = tools.isObject(input) && input.loginCookie && tools.clone(input)
 						 || this.cookieFile && !ignoreFile && await readFileAsync(this.cookieFile, 'utf8').then(json => JSON.parse(json)).catch(this.warnCb)
 						 || undefined;
+
+					this.authDebugWrite('account.init.cookieData.loaded', {
+						ignoreFile,
+						cookieFile: this.cookieFile,
+						source: tools.isObject(input) && input.loginCookie ? 'input' : (this.cookieFile && !ignoreFile ? 'file-or-none' : 'none'),
+						cookieData
+					});
 
 					config.cookie = cookieData;
 					config.cookieJustCreated = !cookieData;
@@ -472,6 +579,17 @@ module.exports = function (RED) {
 			// currently initType should not differ this.authMethod
 			const initType = config.cookie ? (config.cookie.loginCookie ? 'proxy' : 'cookie') : (config.email && config.password ? 'password' : 'proxy');
 
+			this.authDebugWrite('account.init.config.ready', {
+				authMethod: this.authMethod,
+				initType,
+				proxyOwnIp: config.proxyOwnIp,
+				proxyPort: config.proxyPort,
+				amazonPage: config.amazonPage,
+				acceptLanguage: config.acceptLanguage,
+				cookieJustCreated: config.cookieJustCreated,
+				cookie: config.cookie
+			});
+
 			this.resetAlexa();
 			
 			switch(initType) {
@@ -498,20 +616,28 @@ module.exports = function (RED) {
 			};
 
 			if(initType === 'proxy') {
-				await tools.portAvailable(config.proxyPort).catch(error => {
+				this.authDebugWrite('account.init.proxy.port.check', { proxyPort: config.proxyPort });
+				await tools.portAvailable(config.proxyPort).then(() => {
+					this.authDebugWrite('account.init.proxy.port.available', { proxyPort: config.proxyPort });
+				}).catch(error => {
 					if(error.code === 'EADDRINUSE') error.message = `port ${config.proxyPort} already in use`;
+					this.authDebugWrite('account.init.proxy.port.error', { proxyPort: config.proxyPort, message: error && error.message, code: error && error.code });
 					this.setState('ERROR', error.message);
 					this.initing = false;
 					throw error;
 				});
 			}
 
+			this.authDebugWrite('account.init.initExt.start', { initType, proxyPort: config.proxyPort, amazonPage: config.amazonPage });
 			const cookieData = await alexa.initExt(config, proxyWaitCallback, this.warnCb, this.errorCb).catch(error => {
 				if(alexa !== this.alexa) return;
+				this.authDebugWrite('account.init.initExt.error', { message: error && error.message, code: error && error.code, statusCode: error && error.statusCode });
 				this.setState('ERROR', error && error.message);
 				this.initing = false;
 				throw error;
 			});
+
+			this.authDebugWrite('account.init.initExt.returned', { cookieData });
 
 			// see above why
 			if(alexa !== this.alexa) {
@@ -536,12 +662,14 @@ module.exports = function (RED) {
 			}
 
 			this.setState('READY');
+			this.authDebugWrite('account.init.ready', { state: this.state, cookieData: this.alexa && this.alexa.cookieData });
 			this.renewTimeout();
 			this.initing = false;
 			return cookieData;
 		};
 		this.refreshAlexa = async function() {
 			if(this.state.code !== 'READY') throw new Error('account must be initialised before refreshing');
+			this.authDebugWrite('account.refresh.start', { state: this.state, authMethod: this.authMethod, hasCookieFile: !!this.cookieFile, cookieData: this.alexa && this.alexa.cookieData });
 			this.setState('REFRESH');
 
 			let cookieData;
@@ -551,14 +679,17 @@ module.exports = function (RED) {
 					&& tools.isObject(this.alexa.cookieData)
 					&& this.alexa.cookieData.loginCookie) {
 				cookieData = this.alexa.cookieData;
+				this.authDebugWrite('account.refresh.usingRuntimeCookieData', { cookieData });
 			}
 
 			//return this.alexa.refreshExt().then(value => {
 			return this.initAlexa(cookieData).then(value => {
 				this.setState('READY');
+				this.authDebugWrite('account.refresh.ready', { value, cookieData: this.alexa && this.alexa.cookieData });
 				this.renewTimeout();
 				return value;
 			}).catch(error => {
+				this.authDebugWrite('account.refresh.error', { message: error && error.message, code: error && error.code, statusCode: error && error.statusCode });
 				this.setState('ERROR', error && error.message);
 				this.renewTimeout();
 				throw error;
