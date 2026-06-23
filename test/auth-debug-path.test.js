@@ -133,8 +133,8 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	});
 
 	account.authDebugWrite('test.freeText', {
-		message: 'Cookie: session-id=secret-session; csrf=secret-csrf',
-		url: 'https://example.invalid/callback?access_token=secret-access&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible',
+		message: 'Cookie: session-id=secret-session; csrf=secret-csrf for secret-free-mail@example.invalid at C:\\Users\\secret-free-user\\auth\\cookie.json',
+		url: 'https://example.invalid/callback?access_token=secret-access&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible',
 		openidUrl: 'https://example.invalid/maplanding?openid.claimed_id=secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial',
 		macDms: 'secret-macdms',
 		cookieFile: 'C:\\Users\\secret-user\\auth\\cookie.json',
@@ -151,6 +151,8 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-session'), 'session value leaked');
 	assert(!log.includes('secret-csrf'), 'csrf value leaked');
 	assert(!log.includes('secret-access'), 'access token leaked');
+	assert(!log.includes('secret-code'), 'authorization code query leaked');
+	assert(!log.includes('secret-state'), 'state query leaked');
 	assert(!log.includes('secret-macdms'), 'macDms value leaked');
 	assert(!log.includes('secret-account'), 'OpenID claimed id leaked');
 	assert(!log.includes('secret-identity'), 'OpenID identity leaked');
@@ -158,7 +160,9 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-nonce'), 'OpenID response nonce leaked');
 	assert(!log.includes('secret-serial'), 'serial value leaked');
 	assert(!log.includes('secret-user'), 'cookie file path leaked');
+	assert(!log.includes('secret-free-user'), 'free text path leaked');
 	assert(!log.includes('secret-mail'), 'email value leaked');
+	assert(!log.includes('secret-free-mail'), 'free text email leaked');
 	assert(!log.includes('secret-customer'), 'customer id leaked');
 	assert(!log.includes('secret-device'), 'device id leaked');
 	assert(!log.includes('secret-serial-number'), 'serial number leaked');

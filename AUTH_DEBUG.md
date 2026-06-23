@@ -158,8 +158,9 @@ After reproducing the issue, run this in the Node-RED user directory:
 
 ```sh
 set -e
-test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
-./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /tmp
+log="${APPLESTRUDEL_AUTH_DEBUG_LOG:-${APPLESTRUDEL_AUTH_DEBUG_DIR:+$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl}}"
+test -n "$log"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$log" --out /tmp
 ```
 
 ## Collect a sanitized bundle in Docker
@@ -174,8 +175,9 @@ Collect to `/data` so the generated bundle is in the persistent Node-RED user di
 set -e
 cd /data
 test -f package.json
-test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
-./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /data
+log="${APPLESTRUDEL_AUTH_DEBUG_LOG:-${APPLESTRUDEL_AUTH_DEBUG_DIR:+$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl}}"
+test -n "$log"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$log" --out /data
 ```
 
 If you use plain Docker from the host, copy the generated archive from the container after the collector has printed `tarFile=...`.
@@ -190,8 +192,9 @@ For the Home Assistant Community add-on this directory is often `/config`:
 set -e
 cd /config
 test -f package.json
-test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
-./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /config
+log="${APPLESTRUDEL_AUTH_DEBUG_LOG:-${APPLESTRUDEL_AUTH_DEBUG_DIR:+$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl}}"
+test -n "$log"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$log" --out /config
 ```
 
 ## Collect a sanitized bundle on Windows PowerShell
@@ -200,10 +203,14 @@ After reproducing the issue, run this in the Node-RED user directory:
 
 ```powershell
 $ErrorActionPreference = "Stop"
-if (-not $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
-  throw "APPLESTRUDEL_AUTH_DEBUG_DIR is not set; set it before starting Node-RED and before running the collector"
+$Log = $env:APPLESTRUDEL_AUTH_DEBUG_LOG
+if (-not $Log -and $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
+  $Log = Join-Path $env:APPLESTRUDEL_AUTH_DEBUG_DIR "authdbg.jsonl"
 }
-.\node_modules\.bin\applestrudel-auth-debug-collect.cmd --log "$env:APPLESTRUDEL_AUTH_DEBUG_DIR\authdbg.jsonl" --out "$env:TEMP"
+if (-not $Log) {
+  throw "APPLESTRUDEL_AUTH_DEBUG_DIR or APPLESTRUDEL_AUTH_DEBUG_LOG is not set; set one before starting Node-RED and before running the collector"
+}
+.\node_modules\.bin\applestrudel-auth-debug-collect.cmd --log "$Log" --out "$env:TEMP"
 if ($LASTEXITCODE -ne 0) { throw "collector failed" }
 ```
 
@@ -279,16 +286,21 @@ After the bundle has been handed over and you no longer need local diagnostics, 
 Linux, macOS, Docker, or Home Assistant:
 
 ```sh
-if [ -n "$APPLESTRUDEL_AUTH_DEBUG_DIR" ]; then
-  rm -f "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl"
+log="${APPLESTRUDEL_AUTH_DEBUG_LOG:-${APPLESTRUDEL_AUTH_DEBUG_DIR:+$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl}}"
+if [ -n "$log" ]; then
+  rm -f "$log"
 fi
 ```
 
 Windows PowerShell:
 
 ```powershell
-if ($env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
-  Remove-Item -LiteralPath "$env:APPLESTRUDEL_AUTH_DEBUG_DIR\authdbg.jsonl" -ErrorAction SilentlyContinue
+$Log = $env:APPLESTRUDEL_AUTH_DEBUG_LOG
+if (-not $Log -and $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
+  $Log = Join-Path $env:APPLESTRUDEL_AUTH_DEBUG_DIR "authdbg.jsonl"
+}
+if ($Log) {
+  Remove-Item -LiteralPath "$Log" -ErrorAction SilentlyContinue
 }
 ```
 

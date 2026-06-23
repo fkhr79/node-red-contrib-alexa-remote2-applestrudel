@@ -22,10 +22,10 @@ function testCollectorCreatesSanitizedBundle() {
 	const outputRoot = path.join(tempRoot, 'out');
 
 	fs.writeFileSync(logPath, [
-		'{"line":"Cookie: session-id=1234567890; csrf=secret-csrf; at-main=secret-at-cookie"}',
+		'{"line":"Cookie: session-id=1234567890; csrf=secret-csrf; at-main=secret-at-cookie for secret-free-mail@example.invalid at C:\\\\Users\\\\secret-free-user\\\\auth\\\\cookie.json"}',
 		'{"details":{"authorization_code":"secret-code","refreshToken":"secret-refresh","macDms":"secret-macdms","cookieFile":"C:\\\\Users\\\\secret-user\\\\auth\\\\cookie.json","email":"secret-mail@example.invalid","customerId":"secret-customer","serialNumber":"secret-serial-number","deviceSerialNumber":"secret-device-serial-number","applianceId":"secret-appliance","entityId":"secret-entity","safe":"visible"}}',
 		'{"headers":{"authorization":["Bearer nested-secret"],"set-cookie":["session-id=nested-session; csrf=nested-csrf"]}}',
-		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid"}',
+		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid"}',
 		'plain Atza|SECRETACCESS X-Amz-Signature=abcdef123456',
 	].join('\n'), 'utf8');
 
@@ -44,6 +44,7 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('secret-csrf'), 'csrf value leaked');
 	assert(!bundleLog.includes('secret-at-cookie'), 'cookie value leaked');
 	assert(!bundleLog.includes('secret-code'), 'authorization code leaked');
+	assert(!bundleLog.includes('secret-state'), 'state query leaked');
 	assert(!bundleLog.includes('secret-refresh'), 'refresh token leaked');
 	assert(!bundleLog.includes('secret-macdms'), 'macDms value leaked');
 	assert(!bundleLog.includes('nested-secret'), 'nested authorization value leaked');
@@ -55,7 +56,9 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('secret-nonce'), 'OpenID response nonce leaked');
 	assert(!bundleLog.includes('secret-serial'), 'serial value leaked');
 	assert(!bundleLog.includes('secret-user'), 'cookie file path leaked');
+	assert(!bundleLog.includes('secret-free-user'), 'free text path leaked');
 	assert(!bundleLog.includes('secret-mail'), 'email value leaked');
+	assert(!bundleLog.includes('secret-free-mail'), 'free text email leaked');
 	assert(!bundleLog.includes('secret-customer'), 'customer id leaked');
 	assert(!bundleLog.includes('secret-device'), 'device id leaked');
 	assert(!bundleLog.includes('secret-serial-number'), 'serial number leaked');
