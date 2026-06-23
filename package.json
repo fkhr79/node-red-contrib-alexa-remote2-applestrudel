@@ -51,6 +51,9 @@
 		"echo"
 	],
 	"license": "MIT",
+	"bin": {
+		"applestrudel-auth-debug-collect": "scripts/collect-auth-debug.js"
+	},
 	"node-red": {
 		"nodes": {
 			"alexa-remote-account": "nodes/alexa-remote-account.js",

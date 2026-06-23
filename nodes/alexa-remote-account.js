@@ -1,5 +1,7 @@
 const util = require('util');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const readFileAsync = util.promisify(fs.readFile);
 const EventEmitter = require('events');
 
@@ -323,8 +325,10 @@ module.exports = function (RED) {
 		this.warnCb = tools.nodeGetWarnCb(this);
 		this.errorCb = tools.nodeGetErrorCb(this);
 
-		this.authDebugLogDir = '/tmp/ct103-auth-observe';
-		this.authDebugLogFile = this.authDebugLogDir + '/authdbg.jsonl';
+		const configuredAuthDebugLogFile = process.env.APPLESTRUDEL_AUTH_DEBUG_LOG;
+		this.authDebugLogDir = process.env.APPLESTRUDEL_AUTH_DEBUG_DIR
+			|| (configuredAuthDebugLogFile ? path.dirname(configuredAuthDebugLogFile) : path.join(os.tmpdir(), 'applestrudel-auth-debug'));
+		this.authDebugLogFile = configuredAuthDebugLogFile || path.join(this.authDebugLogDir, 'authdbg.jsonl');
 		this.authDebugSensitiveKey = key => {
 			const text = String(key || '');
 			if (/cookieFile/i.test(text)) return false;
