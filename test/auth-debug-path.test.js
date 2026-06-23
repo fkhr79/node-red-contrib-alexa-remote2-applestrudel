@@ -135,12 +135,24 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	account.authDebugWrite('test.freeText', {
 		message: 'Cookie: session-id=secret-session; csrf=secret-csrf for secret-free-mail@example.invalid at C:\\Users\\secret-free-user\\auth\\cookie.json',
 		pathMessage: 'C:\\Users\\secret-free-user\\auth\\cookie.json keep-safe-after-path',
+		escapedPathMessage: 'C:\\\\Users\\\\secret-escaped-user\\\\auth\\\\cookie.json keep-safe-after-escaped-path',
+		slashWindowsPathMessage: 'C:/Users/secret-slash-user/auth/cookie.json keep-safe-after-slash-windows-path',
+		uncPathMessage: '\\\\secret-server\\secret-share\\auth\\cookie.json keep-safe-after-unc-path',
 		spacedPathMessage: 'C:\\Users\\secret free user\\auth\\cookie.json keep-safe-after-spaced-path',
 		posixPathMessage: '/home/secret-posix-user/auth/cookie.json keep-safe-after-posix-path',
 		macPathMessage: '/Users/secret-mac-user/auth/cookie.json keep-safe-after-mac-path',
 		dataPathMessage: '/data/secret-data-user/auth/cookie.json keep-safe-after-data-path',
 		configPathMessage: '/config/secret-config-user/auth/cookie.json keep-safe-after-config-path',
-		url: 'https://example.invalid/callback?access_token=secret-access&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible',
+		rootPathMessage: '/root/secret-root-user/.node-red/cookie.json keep-safe-after-root-path',
+		dockerPathMessage: '/var/lib/docker/volumes/secret-docker-user/_data/auth/cookie.json keep-safe-after-docker-path',
+		mntPathMessage: '/mnt/data/supervisor/homeassistant/secret-mnt-user/auth/cookie.json keep-safe-after-mnt-path',
+		haPathMessage: '/homeassistant/secret-ha-user/auth/cookie.json keep-safe-after-ha-path',
+		callbackFields: {
+			code: 'secret-json-code',
+			state: 'secret-json-state',
+		},
+		shortUrl: 'https://example.invalid/callback?email=secret-short-url%40example.invalid&safe=visible-url-safe',
+		url: 'https://example.invalid/callback?access_token=secret-access&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible-url-safe',
 		openidUrl: 'https://example.invalid/maplanding?openid.claimed_id=secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial',
 		macDms: 'secret-macdms',
 		cookieFile: 'C:\\Users\\secret-user\\auth\\cookie.json',
@@ -167,25 +179,44 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-serial'), 'serial value leaked');
 	assert(!log.includes('secret-user'), 'cookie file path leaked');
 	assert(!log.includes('secret-free-user'), 'free text path leaked');
+	assert(!log.includes('secret-escaped-user'), 'escaped free text path leaked');
+	assert(!log.includes('secret-slash-user'), 'slash Windows free text path leaked');
+	assert(!log.includes('secret-server'), 'UNC server leaked');
+	assert(!log.includes('secret-share'), 'UNC share leaked');
 	assert(!log.includes('secret free user'), 'free text path with spaces leaked');
 	assert(!log.includes('secret-posix-user'), 'POSIX free text path leaked');
 	assert(!log.includes('secret-mac-user'), 'macOS free text path leaked');
 	assert(!log.includes('secret-data-user'), 'data directory free text path leaked');
 	assert(!log.includes('secret-config-user'), 'config directory free text path leaked');
+	assert(!log.includes('secret-root-user'), 'root directory free text path leaked');
+	assert(!log.includes('secret-docker-user'), 'docker volume free text path leaked');
+	assert(!log.includes('secret-mnt-user'), 'mnt data free text path leaked');
+	assert(!log.includes('secret-ha-user'), 'homeassistant free text path leaked');
 	assert(!log.includes('secret-mail'), 'email value leaked');
+	assert(!log.includes('secret-short-url'), 'short URL email value leaked');
 	assert(!log.includes('secret-free-mail'), 'free text email leaked');
 	assert(!log.includes('secret-customer'), 'customer id leaked');
 	assert(!log.includes('secret-device'), 'device id leaked');
 	assert(!log.includes('secret-serial-number'), 'serial number leaked');
 	assert(!log.includes('secret-appliance'), 'appliance id leaked');
 	assert(!log.includes('secret-entity'), 'entity id leaked');
+	assert(!log.includes('secret-json-code'), 'JSON code value leaked');
+	assert(!log.includes('secret-json-state'), 'JSON state value leaked');
 	assert(log.includes('visible'), 'safe value should remain visible');
+	assert(log.includes('visible-url-safe'), 'safe URL query value should remain visible');
 	assert(log.includes('keep-safe-after-path'), 'safe text after masked path should remain visible');
+	assert(log.includes('keep-safe-after-escaped-path'), 'safe text after masked escaped path should remain visible');
+	assert(log.includes('keep-safe-after-slash-windows-path'), 'safe text after masked slash Windows path should remain visible');
+	assert(log.includes('keep-safe-after-unc-path'), 'safe text after masked UNC path should remain visible');
 	assert(log.includes('keep-safe-after-spaced-path'), 'safe text after masked path with spaces should remain visible');
 	assert(log.includes('keep-safe-after-posix-path'), 'safe text after masked POSIX path should remain visible');
 	assert(log.includes('keep-safe-after-mac-path'), 'safe text after masked macOS path should remain visible');
 	assert(log.includes('keep-safe-after-data-path'), 'safe text after masked data path should remain visible');
 	assert(log.includes('keep-safe-after-config-path'), 'safe text after masked config path should remain visible');
+	assert(log.includes('keep-safe-after-root-path'), 'safe text after masked root path should remain visible');
+	assert(log.includes('keep-safe-after-docker-path'), 'safe text after masked docker path should remain visible');
+	assert(log.includes('keep-safe-after-mnt-path'), 'safe text after masked mnt path should remain visible');
+	assert(log.includes('keep-safe-after-ha-path'), 'safe text after masked homeassistant path should remain visible');
 }
 
 function testAuthDebugLoggerSanitizesNestedJsonValues() {

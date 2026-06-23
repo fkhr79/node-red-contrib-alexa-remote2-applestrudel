@@ -57,7 +57,7 @@ npm pkg set overrides.alexa-cookie2=https://github.com/fkhr79/alexa-cookie/archi
 npm install
 ```
 
-Restart Node-RED after the install command has finished.
+Do not restart Node-RED yet. Configure the debug log location first, then restart Node-RED with that environment active.
 
 ## Install on Windows PowerShell
 
@@ -94,7 +94,7 @@ npm.cmd install
 if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 ```
 
-Restart Node-RED after the install command has finished.
+Do not restart Node-RED yet. Configure the debug log location first, then restart Node-RED with that environment active.
 
 If you start Node-RED manually from PowerShell, stop it with `Ctrl+C` and start it again.
 If Node-RED runs as a Windows service, restart that service.
@@ -117,7 +117,7 @@ node -e "const os=require('os'),path=require('path'); console.log(path.join(os.t
 
 Run this command inside the same environment that starts Node-RED. In many Linux containers this prints `/tmp/applestrudel-auth-debug/authdbg.jsonl`; on Windows it usually prints a path below `%TEMP%`.
 
-For a debug run, set one explicit debug directory before starting Node-RED.
+For a debug run, set one explicit debug directory in the environment that starts the Node-RED process. An interactive `export` or `$env:...` is enough only when you start Node-RED manually from that same terminal. If Node-RED is started by a service, container, or add-on supervisor, configure the variable there and restart through that service, container, or add-on.
 
 Linux/macOS/Docker/Home Assistant:
 
@@ -125,13 +125,28 @@ Linux/macOS/Docker/Home Assistant:
 export APPLESTRUDEL_AUTH_DEBUG_DIR=/tmp/applestrudel-auth-debug
 ```
 
+For plain Docker, pass the variable when the container starts, for example:
+
+```sh
+docker run -e APPLESTRUDEL_AUTH_DEBUG_DIR=/tmp/applestrudel-auth-debug ...
+```
+
+For Docker Compose, add the variable to the Node-RED service:
+
+```yaml
+environment:
+  APPLESTRUDEL_AUTH_DEBUG_DIR: /tmp/applestrudel-auth-debug
+```
+
+For Home Assistant add-ons, add the variable in the add-on's supported environment or options configuration if available. If the add-on does not expose persistent environment variables, use the exact log path printed by the Node.js default lookup command above and collect from that path.
+
 Windows PowerShell:
 
 ```powershell
 $env:APPLESTRUDEL_AUTH_DEBUG_DIR="$env:TEMP\applestrudel-auth-debug"
 ```
 
-Set these variables before starting Node-RED.
+Restart Node-RED only after the variable is configured in the environment that actually starts Node-RED.
 
 ## Reproduce the problem
 
