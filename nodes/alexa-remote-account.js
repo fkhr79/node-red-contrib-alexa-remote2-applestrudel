@@ -459,8 +459,7 @@ module.exports = function (RED) {
 			.replace(/\b[A-Za-z]:\\+(?:[^\\/"'\n\r,;}]+\\+)*(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\b[A-Za-z]:\/+(?:[^\/\\"'\n\r,;}]+\/+)*(?:[^\/\\"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/\\"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\\{2,}(?:[^\\/"'\n\r,;}]+\\+)+(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
-			.replace(/\/(?:tmp|var|opt|etc|srv)(?:\/[^\/"'\s\n\r,;}]+)+(?:\/[^\/"'\s\n\r,;}]*?\.[A-Za-z0-9]{1,12}|\/[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
-			.replace(/(?:\/home\/|\/Users\/|\/data\/|\/config\/|\/root\/|\/var\/lib\/docker\/volumes\/|\/mnt\/data\/|\/homeassistant\/)(?:[^\/"'\n\r,;}]+\/)*(?:[^\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]');
+			.replace(/(^|[^A-Za-z0-9+.-:/])\/(?:homeassistant|tmp|var|opt|etc|srv|home|Users|data|config|root|mnt)(?=\/|$)(?:\/[^\/?"'\s\n\r,;}#&]+)*/g, '$1[AUTHDBG_PATH_MASKED]');
 		this.authDebugWrite = (event, details = {}) => {
 			try {
 				if (!this.authDebugEnabled) return;

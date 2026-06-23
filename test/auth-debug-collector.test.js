@@ -7,6 +7,7 @@ const path = require('path');
 const repoRoot = path.join(__dirname, '..');
 const collectorPath = path.join(repoRoot, 'scripts', 'collect-auth-debug.js');
 const packageJson = require('../package.json');
+const { sanitizeText } = require('../scripts/collect-auth-debug');
 
 function runCollector(args, options = {}) {
 	return childProcess.spawnSync(process.execPath, [collectorPath, ...args], {
@@ -14,6 +15,75 @@ function runCollector(args, options = {}) {
 		env: Object.assign({}, process.env, options.env || {}),
 		encoding: 'utf8',
 	});
+}
+
+function testSanitizeTextMasksLocalPathsWithoutMaskingUrls() {
+	const cases = [
+		{
+			name: 'simple POSIX path',
+			input: '/tmp/fake-sensitive-token.jsonl keep-simple-posix',
+			absent: ['fake-sensitive-token'],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-simple-posix'],
+		},
+		{
+			name: 'deep POSIX path',
+			input: '/var/lib/node-red/secret-var-user/auth/cookie.json keep-deep-posix',
+			absent: ['secret-var-user', 'cookie.json'],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-deep-posix'],
+		},
+		{
+			name: 'POSIX path with dots hyphens and underscores',
+			input: '/opt/node-red/user_1/auth.debug/cookie-store_2026.jsonl keep-posix-characters',
+			absent: ['user_1', 'auth.debug', 'cookie-store_2026'],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-posix-characters'],
+		},
+		{
+			name: 'Windows drive path',
+			input: 'C:\\Users\\secret-windows-user\\auth\\cookie.json keep-windows',
+			absent: ['secret-windows-user'],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-windows'],
+		},
+		{
+			name: 'UNC path',
+			input: '\\\\secret-server\\secret-share\\auth\\cookie.json keep-unc',
+			absent: ['secret-server', 'secret-share'],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-unc'],
+		},
+		{
+			name: 'URL',
+			input: 'https://example.invalid/static/file.json keep-url',
+			absent: [],
+			present: ['https://example.invalid/static/file.json', 'keep-url'],
+		},
+		{
+			name: 'URL path',
+			input: 'GET /ap/static/file.json keep-url-path',
+			absent: [],
+			present: ['/ap/static/file.json', 'keep-url-path'],
+		},
+		{
+			name: 'harmless non-path text',
+			input: 'visible text with ratio 1/2 and word/not/path keep-harmless',
+			absent: [],
+			present: ['visible text', '1/2', 'word/not/path', 'keep-harmless'],
+		},
+		{
+			name: 'already masked path',
+			input: '[AUTHDBG_PATH_MASKED] keep-already-masked',
+			absent: [],
+			present: ['[AUTHDBG_PATH_MASKED]', 'keep-already-masked'],
+		},
+	];
+
+	for (const testCase of cases) {
+		const sanitized = sanitizeText(testCase.input);
+		for (const value of testCase.absent) {
+			assert(!sanitized.includes(value), `${testCase.name} leaked ${value}: ${sanitized}`);
+		}
+		for (const value of testCase.present) {
+			assert(sanitized.includes(value), `${testCase.name} lost ${value}: ${sanitized}`);
+		}
+	}
 }
 
 function testCollectorCreatesSanitizedBundle() {
@@ -250,6 +320,7 @@ function testCollectorFailsCleanlyWhenLogMissing() {
 	assert(result.stderr.includes('[AUTHDBG_PATH_MASKED]'), result.stderr);
 }
 
+testSanitizeTextMasksLocalPathsWithoutMaskingUrls();
 testCollectorCreatesSanitizedBundle();
 testCollectorUsesDebugDirEnvForDefaultLog();
 testCollectorMasksSummaryPathMetadata();

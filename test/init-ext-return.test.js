@@ -68,7 +68,7 @@ async function main() {
 		alexaWithLogger.updateExt = async () => {};
 
 		await alexaWithLogger.initExt({
-			amazonPage: 'https://example.invalid/?openid.sig=secret-openid-signature&openid.claimed_id=secret-account&serial=secret-serial&code=secret-code&state=secret-state&access_token=secret-access',
+			amazonPage: 'https://example.invalid/static/file.json?openid.sig=secret-openid-signature&openid.claimed_id=secret-account&serial=secret-serial&code=secret-code&state=secret-state&access_token=secret-access',
 			logger: line => logs.push(line),
 		});
 
@@ -80,6 +80,23 @@ async function main() {
 		assert(!joined.includes('secret-code'), 'authorization code query leaked through auth debug logger');
 		assert(!joined.includes('secret-state'), 'state query leaked through auth debug logger');
 		assert(joined.includes('[AUTHDBG_FIELD_MASKED]'), 'masked marker missing');
+
+		const alexaWithPathLogger = createAlexa();
+		const pathLogs = [];
+		alexaWithPathLogger.init = (_config, callback) => callback(null);
+		alexaWithPathLogger.checkAuthenticationExt = async () => true;
+		alexaWithPathLogger.updateExt = async () => {};
+
+		await alexaWithPathLogger.initExt({
+			amazonPage: '/tmp/fake-sensitive-token.jsonl https://example.invalid/static/file.json /ap/static/file.json keep-url-path',
+			logger: line => pathLogs.push(line),
+		});
+
+		const joinedPaths = pathLogs.join('\n');
+		assert(!joinedPaths.includes('fake-sensitive-token'), 'simple POSIX path leaked through auth debug logger');
+		assert(joinedPaths.includes('https://example.invalid/static/file.json'), 'URL path inside URL should remain visible');
+		assert(joinedPaths.includes('/ap/static/file.json'), 'standalone URL path should remain visible');
+		assert(joinedPaths.includes('keep-url-path'), 'safe text after URL path should remain visible');
 
 		const alexaWithNestedLogger = createAlexa();
 		const nestedLogs = [];
