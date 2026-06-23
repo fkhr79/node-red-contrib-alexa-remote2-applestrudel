@@ -34,10 +34,13 @@ function testCollectorCreatesSanitizedBundle() {
 		'{"configPathMessage":"/config/secret-config-user/auth/cookie.json keep-safe-after-config-path"}',
 		'{"rootPathMessage":"/root/secret-root-user/.node-red/cookie.json keep-safe-after-root-path"}',
 		'{"dockerPathMessage":"/var/lib/docker/volumes/secret-docker-user/_data/auth/cookie.json keep-safe-after-docker-path"}',
+		'{"varLibPathMessage":"/var/lib/node-red/secret-var-lib-user/auth/cookie.json keep-safe-after-var-lib-path"}',
+		'{"optPathMessage":"/opt/node-red/secret-opt-user/auth/cookie.json keep-safe-after-opt-path"}',
 		'{"mntPathMessage":"/mnt/data/supervisor/homeassistant/secret-mnt-user/auth/cookie.json keep-safe-after-mnt-path"}',
 		'{"haPathMessage":"/homeassistant/secret-ha-user/auth/cookie.json keep-safe-after-ha-path"}',
 		'Cookie: foo=secret-foo-cookie; bar=secret-bar-cookie keep-safe-after-cookie-line',
 		'AUTHDBG {"authorization":["Bearer secret-prefixed-bearer"],"safe":"visible-prefixed-json"}',
+		'AUTHDBG {"details":{"safe":"visible-nested-prefixed-json"},"authorization":["Bearer secret-prefixed-nested-bearer"],"cookie":{"localCookie":"secret-prefixed-nested-cookie"}}',
 		'{"details":{"authorization_code":"secret-code","code":"secret-json-code","state":"secret-json-state","refreshToken":"secret-refresh","macDms":"secret-macdms","cookieFile":"C:\\\\Users\\\\secret-user\\\\auth\\\\cookie.json","email":"secret-mail@example.invalid","customerId":"secret-customer","serialNumber":"secret-serial-number","deviceSerialNumber":"secret-device-serial-number","applianceId":"secret-appliance","entityId":"secret-entity","safe":"visible"}}',
 		'{"headers":{"authorization":["Bearer nested-secret"],"set-cookie":["session-id=nested-session; csrf=nested-csrf"]}}',
 		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid&safe=visible-url-safe&note=secret-note-mail%40example.invalid"}',
@@ -83,11 +86,15 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('secret-config-user'), 'config directory free text path leaked');
 	assert(!bundleLog.includes('secret-root-user'), 'root directory free text path leaked');
 	assert(!bundleLog.includes('secret-docker-user'), 'docker volume free text path leaked');
+	assert(!bundleLog.includes('secret-var-lib-user'), 'var lib free text path leaked');
+	assert(!bundleLog.includes('secret-opt-user'), 'opt free text path leaked');
 	assert(!bundleLog.includes('secret-mnt-user'), 'mnt data free text path leaked');
 	assert(!bundleLog.includes('secret-ha-user'), 'homeassistant free text path leaked');
 	assert(!bundleLog.includes('secret-foo-cookie'), 'unknown cookie value leaked');
 	assert(!bundleLog.includes('secret-bar-cookie'), 'second unknown cookie value leaked');
 	assert(!bundleLog.includes('secret-prefixed-bearer'), 'prefixed JSON authorization array leaked');
+	assert(!bundleLog.includes('secret-prefixed-nested-bearer'), 'nested prefixed JSON authorization array leaked');
+	assert(!bundleLog.includes('secret-prefixed-nested-cookie'), 'nested prefixed JSON cookie object leaked');
 	assert(!bundleLog.includes('secret-mail'), 'email value leaked');
 	assert(!bundleLog.includes('secret-note-mail'), 'URL-encoded email in non-sensitive query parameter leaked');
 	assert(!bundleLog.includes('secret-free-mail'), 'free text email leaked');
@@ -113,12 +120,15 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(bundleLog.includes('keep-safe-after-config-path'), 'safe text after masked config path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-root-path'), 'safe text after masked root path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-docker-path'), 'safe text after masked docker path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-var-lib-path'), 'safe text after masked var lib path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-opt-path'), 'safe text after masked opt path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-mnt-path'), 'safe text after masked mnt path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-ha-path'), 'safe text after masked homeassistant path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-cookie-line'), 'safe text after masked cookie line should remain visible');
 	assert(bundleLog.includes('visible-prefixed-json'), 'safe prefixed JSON value should remain visible');
+	assert(bundleLog.includes('visible-nested-prefixed-json'), 'safe nested prefixed JSON value should remain visible');
 	assert.strictEqual(summary.input.logFileName, 'authdbg.jsonl');
-	assert.strictEqual(summary.input.lineCount, 20);
+	assert.strictEqual(summary.input.lineCount, 23);
 	assert.strictEqual(summary.output.tarCreated, false);
 	assert(readme.includes('authdbg.jsonl'));
 }
@@ -229,10 +239,12 @@ function testPackageBinPointsToExecutableCollector() {
 
 function testCollectorFailsCleanlyWhenLogMissing() {
 	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-debug-collector-missing-test-'));
-	const result = runCollector(['--log', path.join(tempRoot, 'missing.jsonl'), '--out', tempRoot, '--no-tar']);
+	const result = runCollector(['--log', path.join(tempRoot, 'secret-missing-user', 'missing.jsonl'), '--out', tempRoot, '--no-tar']);
 
 	assert.notStrictEqual(result.status, 0);
 	assert(result.stderr.includes('debug log not found'), result.stderr);
+	assert(!result.stderr.includes('secret-missing-user'), 'missing log error leaked full path');
+	assert(result.stderr.includes('[AUTHDBG_PATH_MASKED]'), result.stderr);
 }
 
 testCollectorCreatesSanitizedBundle();

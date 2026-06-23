@@ -13,6 +13,7 @@ The goal is to expose all of its functionality in node-red nodes.
 
 - [Changelog](CHANGELOG.md)
 - [Examples](examples.md)
+- [Auth debug test build](AUTH_DEBUG.md)
 
 ### **Migration**
 In case you've already installed Node-RED nodes from [alexa-cakebaked](https://www.npmjs.com/package/node-red-contrib-alexa-cakebaked) or [alexa-remote2](https://www.npmjs.com/package/node-red-contrib-alexa-remote2) the installation won't work due to conflicting names. You have 2 options:

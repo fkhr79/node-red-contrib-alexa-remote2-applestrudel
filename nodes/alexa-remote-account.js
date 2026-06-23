@@ -381,7 +381,64 @@ module.exports = function (RED) {
 				return null;
 			}
 		};
-		this.authDebugSanitizeJsonFragments = value => String(value).replace(/\{[^{}\n\r]*\}/g, fragment => this.authDebugSanitizeJsonLine(fragment) || fragment);
+		this.authDebugJsonFragmentEnd = (text, start) => {
+			const stack = [];
+			let inString = false;
+			let escaped = false;
+
+			for (let i = start; i < text.length; i++) {
+				const char = text[i];
+				if (inString) {
+					if (escaped) {
+						escaped = false;
+					}
+					else if (char === '\\') {
+						escaped = true;
+					}
+					else if (char === '"') {
+						inString = false;
+					}
+					continue;
+				}
+				if (char === '"') {
+					inString = true;
+				}
+				else if (char === '{') {
+					stack.push('}');
+				}
+				else if (char === '[') {
+					stack.push(']');
+				}
+				else if (stack.length && char === stack[stack.length - 1]) {
+					stack.pop();
+					if (!stack.length) return i;
+				}
+			}
+			return -1;
+		};
+		this.authDebugSanitizeJsonFragments = value => {
+			const text = String(value);
+			let sanitized = '';
+			let offset = 0;
+			while (offset < text.length) {
+				const objectIndex = text.indexOf('{', offset);
+				const arrayIndex = text.indexOf('[', offset);
+				const start = objectIndex === -1 ? arrayIndex : (arrayIndex === -1 ? objectIndex : Math.min(objectIndex, arrayIndex));
+				if (start === -1) {
+					sanitized += text.slice(offset);
+					break;
+				}
+				const end = this.authDebugJsonFragmentEnd(text, start);
+				if (end === -1) {
+					sanitized += text.slice(offset);
+					break;
+				}
+				const fragment = text.slice(start, end + 1);
+				sanitized += text.slice(offset, start) + (this.authDebugSanitizeJsonLine(fragment) || fragment);
+				offset = end + 1;
+			}
+			return sanitized;
+		};
 		this.authDebugSanitizeCookieHeader = value => String(value).replace(/\b(Cookie\s*:\s*)([^\n\r]+)/gi, (_match, prefix, cookieText) =>
 			prefix + cookieText.replace(/([^=;\s]+)=([^;\s\n\r]+)/g, '$1=[AUTHDBG_MASKED]')
 		);
@@ -402,6 +459,7 @@ module.exports = function (RED) {
 			.replace(/\b[A-Za-z]:\\+(?:[^\\/"'\n\r,;}]+\\+)*(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\b[A-Za-z]:\/+(?:[^\/\\"'\n\r,;}]+\/+)*(?:[^\/\\"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/\\"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\\{2,}(?:[^\\/"'\n\r,;}]+\\+)+(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
+			.replace(/\/(?:var|opt|etc|srv)(?:\/[^\/"'\s\n\r,;}]+)+(?:\/[^\/"'\s\n\r,;}]*?\.[A-Za-z0-9]{1,12}|\/[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/(?:\/home\/|\/Users\/|\/data\/|\/config\/|\/root\/|\/var\/lib\/docker\/volumes\/|\/mnt\/data\/|\/homeassistant\/)(?:[^\/"'\n\r,;}]+\/)*(?:[^\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]');
 		this.authDebugWrite = (event, details = {}) => {
 			try {

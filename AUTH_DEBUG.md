@@ -135,7 +135,7 @@ environment:
   APPLESTRUDEL_AUTH_DEBUG_DIR: /tmp/applestrudel-auth-debug
 ```
 
-For Home Assistant add-ons, add the variable in the add-on's supported environment or options configuration if available. If the add-on does not expose persistent environment variables, this file-based debug mode cannot be enabled reliably through the add-on alone; use Node-RED debug output instead or run Node-RED in an environment where `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` can be set before process start.
+For Home Assistant add-ons, add the variable in the add-on's supported environment or options configuration if available. If the add-on does not expose persistent environment variables, this file-based debug mode cannot be enabled reliably through the add-on alone. In that case, run Node-RED in an environment where `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` can be set before process start.
 
 Windows PowerShell:
 
@@ -146,7 +146,7 @@ $env:APPLESTRUDEL_AUTH_DEBUG_DIR="$env:TEMP\applestrudel-auth-debug"
 Restart Node-RED only after the variable is configured in the environment that actually starts Node-RED.
 
 If you start Node-RED manually from PowerShell, stop it with `Ctrl+C` and start it again from the same PowerShell window after setting `$env:APPLESTRUDEL_AUTH_DEBUG_DIR`.
-If Node-RED runs as a Windows service, configure the variable for that service first, then restart that service.
+If Node-RED runs as a Windows service, configure the variable for that service first, then restart that service. For services, prefer an explicit file path such as `C:\Temp\applestrudel-auth-debug\authdbg.jsonl` via `APPLESTRUDEL_AUTH_DEBUG_LOG`; a later interactive PowerShell may not see the service environment.
 
 ## Reproduce the problem
 
@@ -166,6 +166,35 @@ http://192.168.0.35:3456/www.amazon.de/ap/maplanding
 ```
 
 Do not share anything after `?` or `#` from a browser URL.
+
+## Confirm the log was written
+
+Before collecting, make sure the current reproduction was actually written to the log file. The file should exist, have a size greater than zero, and have a modification time after your reproduction.
+
+Linux, macOS, Docker, or Home Assistant:
+
+```sh
+log="${APPLESTRUDEL_AUTH_DEBUG_LOG:-${APPLESTRUDEL_AUTH_DEBUG_DIR:+$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl}}"
+test -s "$log"
+ls -l "$log"
+```
+
+Windows PowerShell:
+
+```powershell
+$Log = $env:APPLESTRUDEL_AUTH_DEBUG_LOG
+if (-not $Log -and $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
+  $Log = Join-Path $env:APPLESTRUDEL_AUTH_DEBUG_DIR "authdbg.jsonl"
+}
+if (-not $Log) {
+  throw "APPLESTRUDEL_AUTH_DEBUG_DIR or APPLESTRUDEL_AUTH_DEBUG_LOG is not set in this PowerShell"
+}
+Get-Item -LiteralPath "$Log" | Select-Object FullName, Length, LastWriteTime
+```
+
+If Node-RED runs as a Windows service and this PowerShell does not know the service environment, set `$Log` manually to the exact `APPLESTRUDEL_AUTH_DEBUG_LOG` path configured for the service before running `Get-Item`.
+
+If the file is missing, empty, or older than the reproduction, stop here. The debug environment is not active in the Node-RED process that handled the login or refresh attempt.
 
 ## Collect a sanitized bundle on Linux or macOS
 
@@ -223,6 +252,11 @@ if (-not $Log -and $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
   $Log = Join-Path $env:APPLESTRUDEL_AUTH_DEBUG_DIR "authdbg.jsonl"
 }
 if (-not $Log) {
+  # For a Windows service, set this to the exact APPLESTRUDEL_AUTH_DEBUG_LOG path configured for that service.
+  # Example:
+  # $Log = "C:\Temp\applestrudel-auth-debug\authdbg.jsonl"
+}
+if (-not $Log) {
   throw "APPLESTRUDEL_AUTH_DEBUG_DIR or APPLESTRUDEL_AUTH_DEBUG_LOG is not set; set one before starting Node-RED and before running the collector"
 }
 .\node_modules\.bin\applestrudel-auth-debug-collect.cmd --log "$Log" --out "$env:TEMP"
@@ -237,6 +271,8 @@ The collector prints:
 On current Windows versions, `tarFile=...` should normally be printed. If no `tarFile=...` line appears, open the printed `bundleDir=...` folder and create a zip file from that folder manually.
 
 ## What to share in the issue
+
+Use the existing issue where the debug run was requested. If there is no existing issue, open one in `https://github.com/fkhr79/node-red-contrib-alexa-remote2-applestrudel/issues`.
 
 Share:
 
