@@ -60,6 +60,39 @@ async function main() {
 		const resultWithoutCookieData = await alexaWithoutCookieData.initExt({});
 
 		assert.strictEqual(resultWithoutCookieData, null);
+
+		const alexaWithLogger = createAlexa();
+		const logs = [];
+		alexaWithLogger.init = (_config, callback) => callback(null);
+		alexaWithLogger.checkAuthenticationExt = async () => true;
+		alexaWithLogger.updateExt = async () => {};
+
+		await alexaWithLogger.initExt({
+			amazonPage: 'https://example.invalid/?access_token=secret-access',
+			logger: line => logs.push(line),
+		});
+
+		const joined = logs.join('\n');
+		assert(!joined.includes('secret-access'), 'access token leaked through auth debug logger');
+		assert(joined.includes('[AUTHDBG_FIELD_MASKED]'), 'masked marker missing');
+
+		const alexaWithNestedLogger = createAlexa();
+		const nestedLogs = [];
+		alexaWithNestedLogger.init = (_config, callback) => callback(null);
+		alexaWithNestedLogger.checkAuthenticationExt = async () => true;
+		alexaWithNestedLogger.updateExt = async () => {};
+
+		await alexaWithNestedLogger.initExt({
+			amazonPage: JSON.stringify({
+				headers: {
+					authorization: ['Bearer nested-secret'],
+				},
+			}),
+			logger: line => nestedLogs.push(line),
+		});
+
+		const joinedNested = nestedLogs.join('\n');
+		assert(!joinedNested.includes('nested-secret'), 'nested authorization value leaked through auth debug logger');
 	}
 	finally {
 		Module._load = originalLoad;

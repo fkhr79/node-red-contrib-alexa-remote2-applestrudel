@@ -1,5 +1,6 @@
 const assert = require('assert');
 const EventEmitter = require('events');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
@@ -109,7 +110,53 @@ function testDebugLogCanBeOverridden() {
 	assert.strictEqual(account.authDebugLogFile, customLog);
 }
 
+function testAuthDebugWriteSanitizesFreeTextValues() {
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-debug-write-test-'));
+	const customLog = path.join(tempRoot, 'authdbg.jsonl');
+	const account = createAccount({
+		APPLESTRUDEL_AUTH_DEBUG_LOG: customLog,
+	});
+
+	account.authDebugWrite('test.freeText', {
+		message: 'Cookie: session-id=secret-session; csrf=secret-csrf',
+		url: 'https://example.invalid/callback?access_token=secret-access&safe=visible',
+		macDms: 'secret-macdms',
+		safe: 'visible',
+	});
+
+	const log = fs.readFileSync(customLog, 'utf8');
+	assert(!log.includes('secret-session'), 'session value leaked');
+	assert(!log.includes('secret-csrf'), 'csrf value leaked');
+	assert(!log.includes('secret-access'), 'access token leaked');
+	assert(!log.includes('secret-macdms'), 'macDms value leaked');
+	assert(log.includes('visible'), 'safe value should remain visible');
+}
+
+function testAuthDebugLoggerSanitizesNestedJsonValues() {
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-debug-logger-test-'));
+	const customLog = path.join(tempRoot, 'authdbg.jsonl');
+	const account = createAccount({
+		APPLESTRUDEL_AUTH_DEBUG_LOG: customLog,
+	});
+
+	account.authDebugLogger(JSON.stringify({
+		headers: {
+			authorization: ['Bearer nested-secret'],
+			'set-cookie': ['session-id=nested-session; csrf=nested-csrf'],
+		},
+		safe: 'visible',
+	}));
+
+	const log = fs.readFileSync(customLog, 'utf8');
+	assert(!log.includes('nested-secret'), 'nested authorization value leaked');
+	assert(!log.includes('nested-session'), 'nested session value leaked');
+	assert(!log.includes('nested-csrf'), 'nested csrf value leaked');
+	assert(log.includes('visible'), 'safe value should remain visible');
+}
+
 testDefaultDebugPathIsGeneric();
 testDebugDirCanBeOverridden();
 testDebugLogCanBeOverridden();
+testAuthDebugWriteSanitizesFreeTextValues();
+testAuthDebugLoggerSanitizesNestedJsonValues();
 console.log('auth-debug-path tests passed');

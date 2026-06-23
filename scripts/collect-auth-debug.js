@@ -20,7 +20,7 @@ function usage() {
 
 function parseArgs(argv) {
 	const args = {
-		logPath: process.env.APPLESTRUDEL_AUTH_DEBUG_LOG || '',
+		logPath: process.env.APPLESTRUDEL_AUTH_DEBUG_LOG || (process.env.APPLESTRUDEL_AUTH_DEBUG_DIR ? path.join(process.env.APPLESTRUDEL_AUTH_DEBUG_DIR, 'authdbg.jsonl') : ''),
 		outputRoot: process.cwd(),
 		createTar: true,
 	};
@@ -47,17 +47,44 @@ function parseArgs(argv) {
 	}
 
 	if (!args.logPath) {
-		args.logPath = fs.existsSync(DEFAULT_LOG_PATH) ? DEFAULT_LOG_PATH : LEGACY_CT103_LOG_PATH;
+		args.logPath = fs.existsSync(DEFAULT_LOG_PATH) || !fs.existsSync(LEGACY_CT103_LOG_PATH) ? DEFAULT_LOG_PATH : LEGACY_CT103_LOG_PATH;
 	}
 
 	return args;
 }
 
+function sensitiveKey(key) {
+	const text = String(key || '');
+	if (/cookieFile/i.test(text)) return false;
+	return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
+}
+
+function maskJsonValue(value, key = '') {
+	if (sensitiveKey(key)) return '[AUTHDBG_MASKED]';
+	if (Array.isArray(value)) return value.map(item => maskJsonValue(item));
+	if (value && typeof value === 'object') {
+		const masked = {};
+		for (const childKey of Object.keys(value)) masked[childKey] = maskJsonValue(value[childKey], childKey);
+		return masked;
+	}
+	if (typeof value === 'string') return sanitizeText(value);
+	return value;
+}
+
+function sanitizeJsonLine(line) {
+	try {
+		return JSON.stringify(maskJsonValue(JSON.parse(line)));
+	}
+	catch (_err) {
+		return null;
+	}
+}
+
 function sanitizeText(value) {
-	return String(value)
-		.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
-		.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
-		.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
+	return String(value).split(/\r?\n/).map(line => sanitizeJsonLine(line) || line).join('\n')
+		.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
+		.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
+		.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 		.replace(/\b((?:session-id(?:-time)?|session-token|csm-hit|ubid-[A-Za-z0-9-]+|x-[A-Za-z0-9-]+|at-[A-Za-z0-9-]+|sess-at-[A-Za-z0-9-]+|lc-[A-Za-z0-9-]+|i18n-prefs))=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 		.replace(/\b(Atza\|)[A-Za-z0-9._~+/=-]+/g, '$1[AUTHDBG_MASKED]')
 		.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]');

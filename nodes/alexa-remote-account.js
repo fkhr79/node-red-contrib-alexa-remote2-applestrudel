@@ -332,7 +332,7 @@ module.exports = function (RED) {
 		this.authDebugSensitiveKey = key => {
 			const text = String(key || '');
 			if (/cookieFile/i.test(text)) return false;
-			return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
+			return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
 		};
 		this.authDebugShape = (value, depth = 0, key = '') => {
 			if (value === undefined) return { type: 'undefined', present: false };
@@ -341,7 +341,10 @@ module.exports = function (RED) {
 				const text = typeof value === 'string' ? value : JSON.stringify(value);
 				return { type: typeof value, present: !!value, length: text ? text.length : 0 };
 			}
-			if (typeof value === 'string') return { type: 'string', present: value.length > 0, length: value.length, value: value.length <= 160 ? value : value.slice(0, 160) };
+			if (typeof value === 'string') {
+				const sanitized = this.authDebugSanitizeText(value);
+				return { type: 'string', present: sanitized.length > 0, length: sanitized.length, value: sanitized.length <= 160 ? sanitized : sanitized.slice(0, 160) };
+			}
 			if (typeof value === 'number' || typeof value === 'boolean') return value;
 			if (Array.isArray(value)) return { type: 'array', length: value.length, sample: depth < 1 ? value.slice(0, 6).map(v => this.authDebugShape(v, depth + 1)) : undefined };
 			if (typeof value === 'object') {
@@ -355,10 +358,29 @@ module.exports = function (RED) {
 			}
 			return { type: typeof value, value: String(value) };
 		};
-		this.authDebugSanitizeText = value => String(value)
-			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
-			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
-			.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
+		this.authDebugMaskJsonValue = (value, key = '') => {
+			if (this.authDebugSensitiveKey(key)) return '[AUTHDBG_MASKED]';
+			if (Array.isArray(value)) return value.map(item => this.authDebugMaskJsonValue(item));
+			if (value && typeof value === 'object') {
+				const masked = {};
+				for (const childKey of Object.keys(value)) masked[childKey] = this.authDebugMaskJsonValue(value[childKey], childKey);
+				return masked;
+			}
+			if (typeof value === 'string') return this.authDebugSanitizeText(value);
+			return value;
+		};
+		this.authDebugSanitizeJsonLine = line => {
+			try {
+				return JSON.stringify(this.authDebugMaskJsonValue(JSON.parse(line)));
+			}
+			catch (_err) {
+				return null;
+			}
+		};
+		this.authDebugSanitizeText = value => String(value).split(/\r?\n/).map(line => this.authDebugSanitizeJsonLine(line) || line).join('\n')
+			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
+			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
+			.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 			.replace(/\b((?:session-id(?:-time)?|session-token|csm-hit|ubid-[A-Za-z0-9-]+|x-[A-Za-z0-9-]+|at-[A-Za-z0-9-]+|sess-at-[A-Za-z0-9-]+|lc-[A-Za-z0-9-]+|i18n-prefs))=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 			.replace(/\b(Atza\|)[A-Za-z0-9._~+/=-]+/g, '$1[AUTHDBG_MASKED]')
 			.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]');
@@ -562,7 +584,7 @@ module.exports = function (RED) {
 					// Prefer the marketplace from saved cookie data (set by
 					// Amazon's getUserData) over the configured value.
 					if (cookieData && cookieData.amazonPage && cookieData.amazonPage !== config.amazonPage) {
-						this.warnCb(`amazonPage corrected: "${config.amazonPage}" → "${cookieData.amazonPage}"`);
+						this.warnCb(`amazonPage corrected: "${config.amazonPage}" -> "${cookieData.amazonPage}"`);
 						config.amazonPage = cookieData.amazonPage;
 					}
 					break;
@@ -605,7 +627,7 @@ module.exports = function (RED) {
 			this.logCb(`intialising ${this.name ? `"${this.name}" ` : ''}with the ${initType.toUpperCase()} method and ${config.cookie ? '' : 'NO '}saved data...`);
 
 			this.debugCb(`Alexa-Remote: starting initialisation:`);
-			this.debugCb(`Alexa-Remote: ${JSON.stringify({authMethod: this.authMethod, initType: initType, cookie: config.cookie})}`);
+			this.debugCb(`Alexa-Remote: ${JSON.stringify({ authMethod: this.authMethod, initType: initType, cookie: this.authDebugShape(config.cookie, 0, 'cookie') })}`);
 
 			// the this.alexa we init could change once the this.alexa.initExt is complete because
 			// this.resetAlexa() or this.initAlexa() might have been called again during this time
