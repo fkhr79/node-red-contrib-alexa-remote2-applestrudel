@@ -390,8 +390,8 @@ module.exports = function (RED) {
 			.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 			.replace(/\b(?:code|state)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 			.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[AUTHDBG_EMAIL_MASKED]')
-			.replace(/\b[A-Za-z]:\\[^"'\n\r,;}]+/g, '[AUTHDBG_PATH_MASKED]')
-			.replace(/\b(?:\/home\/|\/Users\/)[^"'\n\r,;}]+/g, '[AUTHDBG_PATH_MASKED]');
+			.replace(/\b[A-Za-z]:\\(?:[^\\/"'\n\r,;}]+\\)*(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
+			.replace(/(?:\/home\/|\/Users\/|\/data\/|\/config\/)(?:[^\/"'\n\r,;}]+\/)*(?:[^\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]');
 		this.authDebugWrite = (event, details = {}) => {
 			try {
 				if (!this.authDebugEnabled) return;

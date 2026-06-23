@@ -88,8 +88,13 @@ function sanitizeText(value) {
 		.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 		.replace(/\b(?:code|state)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[AUTHDBG_EMAIL_MASKED]')
-		.replace(/\b[A-Za-z]:\\[^"'\n\r,;}]+/g, '[AUTHDBG_PATH_MASKED]')
-		.replace(/\b(?:\/home\/|\/Users\/)[^"'\n\r,;}]+/g, '[AUTHDBG_PATH_MASKED]');
+		.replace(/\b[A-Za-z]:\\(?:[^\\/"'\n\r,;}]+\\)*(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
+		.replace(/(?:\/home\/|\/Users\/|\/data\/|\/config\/)(?:[^\/"'\n\r,;}]+\/)*(?:[^\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]');
+}
+
+function publicLogBasename(value, expectedPublicName) {
+	const name = path.basename(String(value || ''));
+	return name === expectedPublicName ? name : '[AUTHDBG_PATH_BASENAME_MASKED]';
 }
 
 function countLines(text) {
@@ -147,8 +152,8 @@ function collectAuthDebug(options) {
 			arch: process.arch,
 		},
 		input: {
-			logFileName: path.basename(logPath),
-			logDirName: path.basename(path.dirname(logPath)),
+			logFileName: publicLogBasename(logPath, 'authdbg.jsonl'),
+			logDirName: publicLogBasename(path.dirname(logPath), 'applestrudel-auth-debug'),
 			bytes: logStat.size,
 			mtime: logStat.mtime.toISOString(),
 			lineCount: countLines(rawLog),

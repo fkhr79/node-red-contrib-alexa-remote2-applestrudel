@@ -134,6 +134,12 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 
 	account.authDebugWrite('test.freeText', {
 		message: 'Cookie: session-id=secret-session; csrf=secret-csrf for secret-free-mail@example.invalid at C:\\Users\\secret-free-user\\auth\\cookie.json',
+		pathMessage: 'C:\\Users\\secret-free-user\\auth\\cookie.json keep-safe-after-path',
+		spacedPathMessage: 'C:\\Users\\secret free user\\auth\\cookie.json keep-safe-after-spaced-path',
+		posixPathMessage: '/home/secret-posix-user/auth/cookie.json keep-safe-after-posix-path',
+		macPathMessage: '/Users/secret-mac-user/auth/cookie.json keep-safe-after-mac-path',
+		dataPathMessage: '/data/secret-data-user/auth/cookie.json keep-safe-after-data-path',
+		configPathMessage: '/config/secret-config-user/auth/cookie.json keep-safe-after-config-path',
 		url: 'https://example.invalid/callback?access_token=secret-access&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible',
 		openidUrl: 'https://example.invalid/maplanding?openid.claimed_id=secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial',
 		macDms: 'secret-macdms',
@@ -161,6 +167,11 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-serial'), 'serial value leaked');
 	assert(!log.includes('secret-user'), 'cookie file path leaked');
 	assert(!log.includes('secret-free-user'), 'free text path leaked');
+	assert(!log.includes('secret free user'), 'free text path with spaces leaked');
+	assert(!log.includes('secret-posix-user'), 'POSIX free text path leaked');
+	assert(!log.includes('secret-mac-user'), 'macOS free text path leaked');
+	assert(!log.includes('secret-data-user'), 'data directory free text path leaked');
+	assert(!log.includes('secret-config-user'), 'config directory free text path leaked');
 	assert(!log.includes('secret-mail'), 'email value leaked');
 	assert(!log.includes('secret-free-mail'), 'free text email leaked');
 	assert(!log.includes('secret-customer'), 'customer id leaked');
@@ -169,6 +180,12 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-appliance'), 'appliance id leaked');
 	assert(!log.includes('secret-entity'), 'entity id leaked');
 	assert(log.includes('visible'), 'safe value should remain visible');
+	assert(log.includes('keep-safe-after-path'), 'safe text after masked path should remain visible');
+	assert(log.includes('keep-safe-after-spaced-path'), 'safe text after masked path with spaces should remain visible');
+	assert(log.includes('keep-safe-after-posix-path'), 'safe text after masked POSIX path should remain visible');
+	assert(log.includes('keep-safe-after-mac-path'), 'safe text after masked macOS path should remain visible');
+	assert(log.includes('keep-safe-after-data-path'), 'safe text after masked data path should remain visible');
+	assert(log.includes('keep-safe-after-config-path'), 'safe text after masked config path should remain visible');
 }
 
 function testAuthDebugLoggerSanitizesNestedJsonValues() {

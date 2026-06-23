@@ -23,6 +23,12 @@ function testCollectorCreatesSanitizedBundle() {
 
 	fs.writeFileSync(logPath, [
 		'{"line":"Cookie: session-id=1234567890; csrf=secret-csrf; at-main=secret-at-cookie for secret-free-mail@example.invalid at C:\\\\Users\\\\secret-free-user\\\\auth\\\\cookie.json"}',
+		'{"pathMessage":"C:\\\\Users\\\\secret-free-user\\\\auth\\\\cookie.json keep-safe-after-path"}',
+		'{"spacedPathMessage":"C:\\\\Users\\\\secret free user\\\\auth\\\\cookie.json keep-safe-after-spaced-path"}',
+		'{"posixPathMessage":"/home/secret-posix-user/auth/cookie.json keep-safe-after-posix-path"}',
+		'{"macPathMessage":"/Users/secret-mac-user/auth/cookie.json keep-safe-after-mac-path"}',
+		'{"dataPathMessage":"/data/secret-data-user/auth/cookie.json keep-safe-after-data-path"}',
+		'{"configPathMessage":"/config/secret-config-user/auth/cookie.json keep-safe-after-config-path"}',
 		'{"details":{"authorization_code":"secret-code","refreshToken":"secret-refresh","macDms":"secret-macdms","cookieFile":"C:\\\\Users\\\\secret-user\\\\auth\\\\cookie.json","email":"secret-mail@example.invalid","customerId":"secret-customer","serialNumber":"secret-serial-number","deviceSerialNumber":"secret-device-serial-number","applianceId":"secret-appliance","entityId":"secret-entity","safe":"visible"}}',
 		'{"headers":{"authorization":["Bearer nested-secret"],"set-cookie":["session-id=nested-session; csrf=nested-csrf"]}}',
 		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid"}',
@@ -57,6 +63,11 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('secret-serial'), 'serial value leaked');
 	assert(!bundleLog.includes('secret-user'), 'cookie file path leaked');
 	assert(!bundleLog.includes('secret-free-user'), 'free text path leaked');
+	assert(!bundleLog.includes('secret free user'), 'free text path with spaces leaked');
+	assert(!bundleLog.includes('secret-posix-user'), 'POSIX free text path leaked');
+	assert(!bundleLog.includes('secret-mac-user'), 'macOS free text path leaked');
+	assert(!bundleLog.includes('secret-data-user'), 'data directory free text path leaked');
+	assert(!bundleLog.includes('secret-config-user'), 'config directory free text path leaked');
 	assert(!bundleLog.includes('secret-mail'), 'email value leaked');
 	assert(!bundleLog.includes('secret-free-mail'), 'free text email leaked');
 	assert(!bundleLog.includes('secret-customer'), 'customer id leaked');
@@ -67,8 +78,14 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('SECRETACCESS'), 'Atza token leaked');
 	assert(!bundleLog.includes('abcdef123456'), 'AWS signature leaked');
 	assert(bundleLog.includes('visible'), 'safe field should remain visible');
+	assert(bundleLog.includes('keep-safe-after-path'), 'safe text after masked path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-spaced-path'), 'safe text after masked path with spaces should remain visible');
+	assert(bundleLog.includes('keep-safe-after-posix-path'), 'safe text after masked POSIX path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-mac-path'), 'safe text after masked macOS path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-data-path'), 'safe text after masked data path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-config-path'), 'safe text after masked config path should remain visible');
 	assert.strictEqual(summary.input.logFileName, 'authdbg.jsonl');
-	assert.strictEqual(summary.input.lineCount, 5);
+	assert.strictEqual(summary.input.lineCount, 11);
 	assert.strictEqual(summary.output.tarCreated, false);
 	assert(readme.includes('authdbg.jsonl'));
 }
@@ -91,7 +108,29 @@ function testCollectorUsesDebugDirEnvForDefaultLog() {
 	const match = result.stdout.match(/bundleDir=(.+)/);
 	assert(match, `collector did not print bundleDir: ${result.stdout}`);
 	const summary = JSON.parse(fs.readFileSync(path.join(match[1].trim(), 'summary.json'), 'utf8'));
-	assert.strictEqual(summary.input.logDirName, path.basename(logDir));
+	assert.strictEqual(summary.input.logDirName, '[AUTHDBG_PATH_BASENAME_MASKED]');
+}
+
+function testCollectorMasksSummaryPathMetadata() {
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-debug-collector-summary-test-'));
+	const logDir = path.join(tempRoot, 'secret-summary-mail@example.invalid');
+	const logPath = path.join(logDir, 'secret-device-summary.jsonl');
+	const outputRoot = path.join(tempRoot, 'out');
+	fs.mkdirSync(logDir, { recursive: true });
+	fs.writeFileSync(logPath, '{"safe":"visible"}\n', 'utf8');
+
+	const result = runCollector(['--log', logPath, '--out', outputRoot, '--no-tar']);
+
+	assert.strictEqual(result.status, 0, result.stderr || result.stdout);
+	const match = result.stdout.match(/bundleDir=(.+)/);
+	assert(match, `collector did not print bundleDir: ${result.stdout}`);
+	const summaryText = fs.readFileSync(path.join(match[1].trim(), 'summary.json'), 'utf8');
+	const summary = JSON.parse(summaryText);
+
+	assert(!summaryText.includes('secret-summary-mail'), 'summary leaked custom log directory name');
+	assert(!summaryText.includes('secret-device-summary'), 'summary leaked custom log file name');
+	assert.strictEqual(summary.input.logFileName, '[AUTHDBG_PATH_BASENAME_MASKED]');
+	assert.strictEqual(summary.input.logDirName, '[AUTHDBG_PATH_BASENAME_MASKED]');
 }
 
 function testCollectorCreatesTarArchiveByDefault() {
@@ -137,6 +176,7 @@ function testCollectorFailsCleanlyWhenLogMissing() {
 
 testCollectorCreatesSanitizedBundle();
 testCollectorUsesDebugDirEnvForDefaultLog();
+testCollectorMasksSummaryPathMetadata();
 testCollectorCreatesTarArchiveByDefault();
 testPackageBinPointsToExecutableCollector();
 testCollectorFailsCleanlyWhenLogMissing();
