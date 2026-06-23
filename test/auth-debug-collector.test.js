@@ -36,9 +36,11 @@ function testCollectorCreatesSanitizedBundle() {
 		'{"dockerPathMessage":"/var/lib/docker/volumes/secret-docker-user/_data/auth/cookie.json keep-safe-after-docker-path"}',
 		'{"mntPathMessage":"/mnt/data/supervisor/homeassistant/secret-mnt-user/auth/cookie.json keep-safe-after-mnt-path"}',
 		'{"haPathMessage":"/homeassistant/secret-ha-user/auth/cookie.json keep-safe-after-ha-path"}',
+		'Cookie: foo=secret-foo-cookie; bar=secret-bar-cookie keep-safe-after-cookie-line',
+		'AUTHDBG {"authorization":["Bearer secret-prefixed-bearer"],"safe":"visible-prefixed-json"}',
 		'{"details":{"authorization_code":"secret-code","code":"secret-json-code","state":"secret-json-state","refreshToken":"secret-refresh","macDms":"secret-macdms","cookieFile":"C:\\\\Users\\\\secret-user\\\\auth\\\\cookie.json","email":"secret-mail@example.invalid","customerId":"secret-customer","serialNumber":"secret-serial-number","deviceSerialNumber":"secret-device-serial-number","applianceId":"secret-appliance","entityId":"secret-entity","safe":"visible"}}',
 		'{"headers":{"authorization":["Bearer nested-secret"],"set-cookie":["session-id=nested-session; csrf=nested-csrf"]}}',
-		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid&safe=visible-url-safe"}',
+		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid&safe=visible-url-safe&note=secret-note-mail%40example.invalid"}',
 		'plain Atza|SECRETACCESS X-Amz-Signature=abcdef123456',
 	].join('\n'), 'utf8');
 
@@ -83,7 +85,11 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('secret-docker-user'), 'docker volume free text path leaked');
 	assert(!bundleLog.includes('secret-mnt-user'), 'mnt data free text path leaked');
 	assert(!bundleLog.includes('secret-ha-user'), 'homeassistant free text path leaked');
+	assert(!bundleLog.includes('secret-foo-cookie'), 'unknown cookie value leaked');
+	assert(!bundleLog.includes('secret-bar-cookie'), 'second unknown cookie value leaked');
+	assert(!bundleLog.includes('secret-prefixed-bearer'), 'prefixed JSON authorization array leaked');
 	assert(!bundleLog.includes('secret-mail'), 'email value leaked');
+	assert(!bundleLog.includes('secret-note-mail'), 'URL-encoded email in non-sensitive query parameter leaked');
 	assert(!bundleLog.includes('secret-free-mail'), 'free text email leaked');
 	assert(!bundleLog.includes('secret-customer'), 'customer id leaked');
 	assert(!bundleLog.includes('secret-device'), 'device id leaked');
@@ -109,8 +115,10 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(bundleLog.includes('keep-safe-after-docker-path'), 'safe text after masked docker path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-mnt-path'), 'safe text after masked mnt path should remain visible');
 	assert(bundleLog.includes('keep-safe-after-ha-path'), 'safe text after masked homeassistant path should remain visible');
+	assert(bundleLog.includes('keep-safe-after-cookie-line'), 'safe text after masked cookie line should remain visible');
+	assert(bundleLog.includes('visible-prefixed-json'), 'safe prefixed JSON value should remain visible');
 	assert.strictEqual(summary.input.logFileName, 'authdbg.jsonl');
-	assert.strictEqual(summary.input.lineCount, 18);
+	assert.strictEqual(summary.input.lineCount, 20);
 	assert.strictEqual(summary.output.tarCreated, false);
 	assert(readme.includes('authdbg.jsonl'));
 }

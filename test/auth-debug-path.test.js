@@ -147,11 +147,13 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 		dockerPathMessage: '/var/lib/docker/volumes/secret-docker-user/_data/auth/cookie.json keep-safe-after-docker-path',
 		mntPathMessage: '/mnt/data/supervisor/homeassistant/secret-mnt-user/auth/cookie.json keep-safe-after-mnt-path',
 		haPathMessage: '/homeassistant/secret-ha-user/auth/cookie.json keep-safe-after-ha-path',
+		unknownCookieLine: 'Cookie: foo=secret-foo-cookie; bar=secret-bar-cookie keep-safe-after-cookie-line',
+		prefixedJsonLine: 'AUTHDBG {"authorization":["Bearer secret-prefixed-bearer"],"safe":"visible-prefixed-json"}',
 		callbackFields: {
 			code: 'secret-json-code',
 			state: 'secret-json-state',
 		},
-		shortUrl: 'https://example.invalid/callback?email=secret-short-url%40example.invalid&safe=visible-url-safe',
+		shortUrl: 'https://example.invalid/callback?email=secret-short-url%40example.invalid&safe=visible-url-safe&note=secret-note-mail%40example.invalid',
 		url: 'https://example.invalid/callback?access_token=secret-access&code=secret-code&state=secret-state&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible-url-safe',
 		openidUrl: 'https://example.invalid/maplanding?openid.claimed_id=secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial',
 		macDms: 'secret-macdms',
@@ -192,8 +194,12 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-docker-user'), 'docker volume free text path leaked');
 	assert(!log.includes('secret-mnt-user'), 'mnt data free text path leaked');
 	assert(!log.includes('secret-ha-user'), 'homeassistant free text path leaked');
+	assert(!log.includes('secret-foo-cookie'), 'unknown cookie value leaked');
+	assert(!log.includes('secret-bar-cookie'), 'second unknown cookie value leaked');
+	assert(!log.includes('secret-prefixed-bearer'), 'prefixed JSON authorization array leaked');
 	assert(!log.includes('secret-mail'), 'email value leaked');
 	assert(!log.includes('secret-short-url'), 'short URL email value leaked');
+	assert(!log.includes('secret-note-mail'), 'URL-encoded email in non-sensitive query parameter leaked');
 	assert(!log.includes('secret-free-mail'), 'free text email leaked');
 	assert(!log.includes('secret-customer'), 'customer id leaked');
 	assert(!log.includes('secret-device'), 'device id leaked');
@@ -217,6 +223,8 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(log.includes('keep-safe-after-docker-path'), 'safe text after masked docker path should remain visible');
 	assert(log.includes('keep-safe-after-mnt-path'), 'safe text after masked mnt path should remain visible');
 	assert(log.includes('keep-safe-after-ha-path'), 'safe text after masked homeassistant path should remain visible');
+	assert(log.includes('keep-safe-after-cookie-line'), 'safe text after masked cookie line should remain visible');
+	assert(log.includes('visible-prefixed-json'), 'safe prefixed JSON value should remain visible');
 }
 
 function testAuthDebugLoggerSanitizesNestedJsonValues() {

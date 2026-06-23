@@ -381,7 +381,15 @@ module.exports = function (RED) {
 				return null;
 			}
 		};
-		this.authDebugSanitizeText = value => String(value).split(/\r?\n/).map(line => this.authDebugSanitizeJsonLine(line) || line).join('\n')
+		this.authDebugSanitizeJsonFragments = value => String(value).replace(/\{[^{}\n\r]*\}/g, fragment => this.authDebugSanitizeJsonLine(fragment) || fragment);
+		this.authDebugSanitizeCookieHeader = value => String(value).replace(/\b(Cookie\s*:\s*)([^\n\r]+)/gi, (_match, prefix, cookieText) =>
+			prefix + cookieText.replace(/([^=;\s]+)=([^;\s\n\r]+)/g, '$1=[AUTHDBG_MASKED]')
+		);
+		this.authDebugSanitizeText = value => this.authDebugSanitizeCookieHeader(
+			this.authDebugSanitizeJsonFragments(
+				String(value).split(/\r?\n/).map(line => this.authDebugSanitizeJsonLine(line) || line).join('\n')
+			)
+		)
 			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|code|state|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
 			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|code|state|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)\s*[:=]\s*)([^&"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
 			.replace(/\b(?:authorization_code|openid\.[A-Za-z0-9_.-]+|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
@@ -390,6 +398,7 @@ module.exports = function (RED) {
 			.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 			.replace(/\b(?:code|state)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 			.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[AUTHDBG_EMAIL_MASKED]')
+			.replace(/\b[A-Z0-9._%+-]+%40[A-Z0-9.-]+(?:\.[A-Z]{2,}|%2E[A-Z]{2,})\b/gi, '[AUTHDBG_EMAIL_MASKED]')
 			.replace(/\b[A-Za-z]:\\+(?:[^\\/"'\n\r,;}]+\\+)*(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\b[A-Za-z]:\/+(?:[^\/\\"'\n\r,;}]+\/+)*(?:[^\/\\"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\/\\"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
 			.replace(/\\{2,}(?:[^\\/"'\n\r,;}]+\\+)+(?:[^\\/"'\n\r,;}]*?\.[A-Za-z0-9]{1,12}|[^\\/"'\s\n\r,;}]+)/g, '[AUTHDBG_PATH_MASKED]')
