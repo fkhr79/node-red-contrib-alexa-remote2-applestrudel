@@ -352,6 +352,11 @@ $Log = $env:APPLESTRUDEL_AUTH_DEBUG_LOG
 if (-not $Log -and $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
   $Log = Join-Path $env:APPLESTRUDEL_AUTH_DEBUG_DIR "authdbg.jsonl"
 }
+if (-not $Log) {
+  # For a Windows service, set this to the exact APPLESTRUDEL_AUTH_DEBUG_LOG path configured for that service.
+  # Example:
+  # $Log = "C:\Temp\applestrudel-auth-debug\authdbg.jsonl"
+}
 if ($Log) {
   Remove-Item -LiteralPath "$Log" -ErrorAction SilentlyContinue
 }

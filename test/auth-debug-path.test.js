@@ -145,6 +145,7 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 		configPathMessage: '/config/secret-config-user/auth/cookie.json keep-safe-after-config-path',
 		rootPathMessage: '/root/secret-root-user/.node-red/cookie.json keep-safe-after-root-path',
 		dockerPathMessage: '/var/lib/docker/volumes/secret-docker-user/_data/auth/cookie.json keep-safe-after-docker-path',
+		tmpPathMessage: '/tmp/applestrudel-auth-debug/secret-tmp-user/authdbg.jsonl keep-safe-after-tmp-path',
 		varLibPathMessage: '/var/lib/node-red/secret-var-lib-user/auth/cookie.json keep-safe-after-var-lib-path',
 		optPathMessage: '/opt/node-red/secret-opt-user/auth/cookie.json keep-safe-after-opt-path',
 		mntPathMessage: '/mnt/data/supervisor/homeassistant/secret-mnt-user/auth/cookie.json keep-safe-after-mnt-path',
@@ -195,6 +196,7 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-config-user'), 'config directory free text path leaked');
 	assert(!log.includes('secret-root-user'), 'root directory free text path leaked');
 	assert(!log.includes('secret-docker-user'), 'docker volume free text path leaked');
+	assert(!log.includes('secret-tmp-user'), 'tmp free text path leaked');
 	assert(!log.includes('secret-var-lib-user'), 'var lib free text path leaked');
 	assert(!log.includes('secret-opt-user'), 'opt free text path leaked');
 	assert(!log.includes('secret-mnt-user'), 'mnt data free text path leaked');
@@ -228,6 +230,7 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(log.includes('keep-safe-after-config-path'), 'safe text after masked config path should remain visible');
 	assert(log.includes('keep-safe-after-root-path'), 'safe text after masked root path should remain visible');
 	assert(log.includes('keep-safe-after-docker-path'), 'safe text after masked docker path should remain visible');
+	assert(log.includes('keep-safe-after-tmp-path'), 'safe text after masked tmp path should remain visible');
 	assert(log.includes('keep-safe-after-var-lib-path'), 'safe text after masked var lib path should remain visible');
 	assert(log.includes('keep-safe-after-opt-path'), 'safe text after masked opt path should remain visible');
 	assert(log.includes('keep-safe-after-mnt-path'), 'safe text after masked mnt path should remain visible');
