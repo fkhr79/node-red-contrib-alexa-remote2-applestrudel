@@ -96,9 +96,6 @@ if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 
 Do not restart Node-RED yet. Configure the debug log location first, then restart Node-RED with that environment active.
 
-If you start Node-RED manually from PowerShell, stop it with `Ctrl+C` and start it again.
-If Node-RED runs as a Windows service, restart that service.
-
 ## Log location
 
 File logging is opt-in. No `authdbg.jsonl` file is written unless you set `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` before starting Node-RED.
@@ -138,7 +135,7 @@ environment:
   APPLESTRUDEL_AUTH_DEBUG_DIR: /tmp/applestrudel-auth-debug
 ```
 
-For Home Assistant add-ons, add the variable in the add-on's supported environment or options configuration if available. If the add-on does not expose persistent environment variables, use the exact log path printed by the Node.js default lookup command above and collect from that path.
+For Home Assistant add-ons, add the variable in the add-on's supported environment or options configuration if available. If the add-on does not expose persistent environment variables, this file-based debug mode cannot be enabled reliably through the add-on alone; use Node-RED debug output instead or run Node-RED in an environment where `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` can be set before process start.
 
 Windows PowerShell:
 
@@ -147,6 +144,9 @@ $env:APPLESTRUDEL_AUTH_DEBUG_DIR="$env:TEMP\applestrudel-auth-debug"
 ```
 
 Restart Node-RED only after the variable is configured in the environment that actually starts Node-RED.
+
+If you start Node-RED manually from PowerShell, stop it with `Ctrl+C` and start it again from the same PowerShell window after setting `$env:APPLESTRUDEL_AUTH_DEBUG_DIR`.
+If Node-RED runs as a Windows service, configure the variable for that service first, then restart that service.
 
 ## Reproduce the problem
 
@@ -297,6 +297,8 @@ Restart Node-RED again after restoring the previous package state.
 ## Remove temporary debug artifacts
 
 After the bundle has been handed over and you no longer need local diagnostics, remove the temporary debug artifacts from the machine where Node-RED ran.
+
+Also remove `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` from any persistent start configuration you changed for the debug run, such as Docker Compose, a container start command, an add-on option, or a Windows service environment. Restart Node-RED once more after removing the variable so file logging is disabled again.
 
 Linux, macOS, Docker, or Home Assistant:
 
