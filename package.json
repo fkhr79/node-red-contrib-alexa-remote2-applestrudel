@@ -51,6 +51,9 @@
 		"echo"
 	],
 	"license": "MIT",
+	"scripts": {
+		"test": "node scripts/run-tests.js"
+	},
 	"node-red": {
 		"nodes": {
 			"alexa-remote-account": "nodes/alexa-remote-account.js",
