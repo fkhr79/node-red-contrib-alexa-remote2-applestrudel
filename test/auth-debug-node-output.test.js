@@ -1,5 +1,7 @@
 const assert = require('assert');
 const EventEmitter = require('events');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const repoRoot = path.join(__dirname, '..');
@@ -78,32 +80,44 @@ function createAccount(input) {
 	}, input));
 }
 
-async function testInitAlexaDoesNotDebugRawCookieData() {
+async function testInitAlexaDoesNotWriteRawCookieDataToAuthDebugLog() {
+	const previousLog = process.env.APPLESTRUDEL_AUTH_DEBUG_LOG;
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-debug-node-output-test-'));
+	const authDebugLog = path.join(tempRoot, 'authdbg.jsonl');
 	const debugLog = [];
-	const account = createAccount({ __debugLog: debugLog });
-	const cookieData = {
-		loginCookie: 'login-cookie-secret',
-		localCookie: 'csrf=secret-csrf; session-id=secret-session',
-		refreshToken: 'secret-refresh',
-		accessToken: 'secret-access',
-		amazonPage: 'amazon.com',
-		dataVersion: 2,
-	};
 
-	account.buildUiJson = async () => {};
-	account.renewTimeout = () => {};
+	try {
+		process.env.APPLESTRUDEL_AUTH_DEBUG_LOG = authDebugLog;
+		const account = createAccount({ __debugLog: debugLog });
+		const cookieData = {
+			loginCookie: 'login-cookie-secret',
+			localCookie: 'csrf=secret-csrf; session-id=secret-session',
+			refreshToken: 'secret-refresh',
+			accessToken: 'secret-access',
+			amazonPage: 'amazon.com',
+			dataVersion: 2,
+		};
 
-	await account.initAlexa(cookieData);
+		account.buildUiJson = async () => {};
+		account.renewTimeout = () => {};
 
-	const joined = debugLog.join('\n');
-	assert(!joined.includes('login-cookie-secret'), 'loginCookie leaked through Node-RED debug output');
-	assert(!joined.includes('secret-csrf'), 'csrf leaked through Node-RED debug output');
-	assert(!joined.includes('secret-session'), 'session leaked through Node-RED debug output');
-	assert(!joined.includes('secret-refresh'), 'refresh token leaked through Node-RED debug output');
-	assert(!joined.includes('secret-access'), 'access token leaked through Node-RED debug output');
+		await account.initAlexa(cookieData);
+
+		const joined = fs.readFileSync(authDebugLog, 'utf8');
+		assert(!joined.includes('login-cookie-secret'), 'loginCookie leaked through auth debug log');
+		assert(!joined.includes('secret-csrf'), 'csrf leaked through auth debug log');
+		assert(!joined.includes('secret-session'), 'session leaked through auth debug log');
+		assert(!joined.includes('secret-refresh'), 'refresh token leaked through auth debug log');
+		assert(!joined.includes('secret-access'), 'access token leaked through auth debug log');
+		assert(joined.includes('account.init.config.ready'), 'expected init config event missing');
+	}
+	finally {
+		if (previousLog === undefined) delete process.env.APPLESTRUDEL_AUTH_DEBUG_LOG;
+		else process.env.APPLESTRUDEL_AUTH_DEBUG_LOG = previousLog;
+	}
 }
 
-testInitAlexaDoesNotDebugRawCookieData()
+testInitAlexaDoesNotWriteRawCookieDataToAuthDebugLog()
 	.then(() => console.log('auth-debug-node-output tests passed'))
 	.catch(error => {
 		console.error(error);

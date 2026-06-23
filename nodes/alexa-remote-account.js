@@ -326,13 +326,17 @@ module.exports = function (RED) {
 		this.errorCb = tools.nodeGetErrorCb(this);
 
 		const configuredAuthDebugLogFile = process.env.APPLESTRUDEL_AUTH_DEBUG_LOG;
-		this.authDebugLogDir = process.env.APPLESTRUDEL_AUTH_DEBUG_DIR
-			|| (configuredAuthDebugLogFile ? path.dirname(configuredAuthDebugLogFile) : path.join(os.tmpdir(), 'applestrudel-auth-debug'));
-		this.authDebugLogFile = configuredAuthDebugLogFile || path.join(this.authDebugLogDir, 'authdbg.jsonl');
+		const configuredAuthDebugLogDir = process.env.APPLESTRUDEL_AUTH_DEBUG_DIR;
+		this.authDebugEnabled = !!(configuredAuthDebugLogFile || configuredAuthDebugLogDir);
+		this.authDebugLogDir = this.authDebugEnabled
+			? (configuredAuthDebugLogFile ? path.dirname(configuredAuthDebugLogFile) : configuredAuthDebugLogDir)
+			: null;
+		this.authDebugLogFile = this.authDebugEnabled
+			? (configuredAuthDebugLogFile || path.join(this.authDebugLogDir, 'authdbg.jsonl'))
+			: null;
 		this.authDebugSensitiveKey = key => {
 			const text = String(key || '');
-			if (/cookieFile/i.test(text)) return false;
-			return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
+			return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|openid(?:\.|_|$)|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|^serial$|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)/i.test(text);
 		};
 		this.authDebugShape = (value, depth = 0, key = '') => {
 			if (value === undefined) return { type: 'undefined', present: false };
@@ -378,14 +382,15 @@ module.exports = function (RED) {
 			}
 		};
 		this.authDebugSanitizeText = value => String(value).split(/\r?\n/).map(line => this.authDebugSanitizeJsonLine(line) || line).join('\n')
-			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
-			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
-			.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
+			.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
+			.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
+			.replace(/\b(?:authorization_code|openid\.[A-Za-z0-9_.-]+|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 			.replace(/\b((?:session-id(?:-time)?|session-token|csm-hit|ubid-[A-Za-z0-9-]+|x-[A-Za-z0-9-]+|at-[A-Za-z0-9-]+|sess-at-[A-Za-z0-9-]+|lc-[A-Za-z0-9-]+|i18n-prefs))=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 			.replace(/\b(Atza\|)[A-Za-z0-9._~+/=-]+/g, '$1[AUTHDBG_MASKED]')
 			.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]');
 		this.authDebugWrite = (event, details = {}) => {
 			try {
+				if (!this.authDebugEnabled) return;
 				fs.mkdirSync(this.authDebugLogDir, { recursive: true });
 				const entry = {
 					ts: new Date().toISOString(),
@@ -401,13 +406,15 @@ module.exports = function (RED) {
 		this.authDebugLogger = line => {
 			const sanitized = this.authDebugSanitizeText(line);
 			try {
-				fs.mkdirSync(this.authDebugLogDir, { recursive: true });
-				fs.appendFileSync(this.authDebugLogFile, JSON.stringify({
-					ts: new Date().toISOString(),
-					component: 'library',
-					event: 'logger',
-					line: sanitized
-				}) + '\n', 'utf8');
+				if (this.authDebugEnabled) {
+					fs.mkdirSync(this.authDebugLogDir, { recursive: true });
+					fs.appendFileSync(this.authDebugLogFile, JSON.stringify({
+						ts: new Date().toISOString(),
+						component: 'library',
+						event: 'logger',
+						line: sanitized
+					}) + '\n', 'utf8');
+				}
 			} catch (_err) {
 				// observation must never change auth flow
 			}
@@ -556,7 +563,7 @@ module.exports = function (RED) {
 
 			let config = {};
 			tools.assign(config, ['proxyOwnIp', 'proxyPort', 'alexaServiceHost', 'pushDispatchHost', 'amazonPage', 'acceptLanguage', 'onKeywordInLanguage', 'userAgent', 'usePushConnection', 'autoQueryActivityOnTrigger'], this);
-			config.logger = this.authDebugLogger;
+			if (this.authDebugEnabled) config.logger = this.authDebugLogger;
 			config.refreshCookieInterval = 0;
 			config.proxyLogLevel = 'warn';
 			config.bluetooth = false;
@@ -700,7 +707,6 @@ module.exports = function (RED) {
 
 			let cookieData;
 			if(this.authMethod === 'proxy'
-					&& !this.cookieFile
 					&& this.alexa
 					&& tools.isObject(this.alexa.cookieData)
 					&& this.alexa.cookieData.loginCookie) {

@@ -68,12 +68,15 @@ async function main() {
 		alexaWithLogger.updateExt = async () => {};
 
 		await alexaWithLogger.initExt({
-			amazonPage: 'https://example.invalid/?access_token=secret-access',
+			amazonPage: 'https://example.invalid/?openid.sig=secret-openid-signature&openid.claimed_id=secret-account&serial=secret-serial&access_token=secret-access',
 			logger: line => logs.push(line),
 		});
 
 		const joined = logs.join('\n');
 		assert(!joined.includes('secret-access'), 'access token leaked through auth debug logger');
+		assert(!joined.includes('secret-openid-signature'), 'OpenID signature leaked through auth debug logger');
+		assert(!joined.includes('secret-account'), 'OpenID claimed id leaked through auth debug logger');
+		assert(!joined.includes('secret-serial'), 'serial value leaked through auth debug logger');
 		assert(joined.includes('[AUTHDBG_FIELD_MASKED]'), 'masked marker missing');
 
 		const alexaWithNestedLogger = createAlexa();

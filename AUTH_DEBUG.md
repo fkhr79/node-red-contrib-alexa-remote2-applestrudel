@@ -13,12 +13,14 @@ It combines:
 2. Change into the Node-RED user directory.
 3. Back up `package.json` and `package-lock.json`.
 4. Install both debug packages.
-5. Restart Node-RED.
-6. Reproduce the login or refresh problem once.
-7. Run the collector and share the generated bundle.
-8. Restore the previous packages after the debug run.
+5. Set `APPLESTRUDEL_AUTH_DEBUG_DIR` before starting Node-RED.
+6. Restart Node-RED.
+7. Reproduce the login or refresh problem once.
+8. Run the collector and share the generated bundle.
+9. Restore the previous packages after the debug run.
+10. Remove the temporary debug log and bundle after you no longer need them.
 
-Do not paste passwords, cookies, tokens, SMS codes, or full browser session data into an issue.
+Do not paste passwords, cookies, tokens, SMS codes, raw logs, terminal output, full URLs, query strings, fragments, or browser session data into an issue.
 
 ## Find the Node-RED user directory
 
@@ -27,16 +29,21 @@ Use the directory that contains your Node-RED `package.json`.
 Common locations:
 
 - Linux/macOS: `~/.node-red`
-- Home Assistant / Docker containers: `/data`
+- Docker containers: often `/data`
+- Home Assistant Community add-on: often `/config`
 - Windows: `%USERPROFILE%\.node-red`
 
 If Node-RED runs in Docker, Home Assistant, Proxmox, or another Linux container, run the Linux commands inside that environment. Do not use the Windows commands for a Linux container just because the host machine is Windows.
+
+Before installing, check that the current directory contains the Node-RED `package.json`.
 
 ## Install on Linux, macOS, Docker, or Home Assistant
 
 Run this in the Node-RED user directory:
 
 ```sh
+set -e
+test -f package.json
 if [ -f package.json.auth-debug-backup ] || [ -f package-lock.json.auth-debug-backup ]; then
   echo "auth debug backup already exists; restore or move it before continuing"
   exit 1
@@ -68,6 +75,10 @@ Use `npm.cmd` in PowerShell. This avoids problems with the optional `npm.ps1` Po
 If PowerShell says that `npm.cmd` was not found, close and reopen PowerShell after installing Node.js, or add the Node.js installation directory to `PATH`.
 
 ```powershell
+$ErrorActionPreference = "Stop"
+if (-not (Test-Path package.json)) {
+  throw "package.json not found; change into the Node-RED user directory first"
+}
 if ((Test-Path package.json.auth-debug-backup) -or (Test-Path package-lock.json.auth-debug-backup)) {
   throw "auth debug backup already exists; restore or move it before continuing"
 }
@@ -76,8 +87,11 @@ if (Test-Path package-lock.json) { Copy-Item package-lock.json package-lock.json
 npm.cmd install --save `
   "https://github.com/fkhr79/node-red-contrib-alexa-remote2-applestrudel/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz" `
   "https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
+if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 npm.cmd pkg set "overrides.alexa-cookie2=https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
+if ($LASTEXITCODE -ne 0) { throw "npm pkg set failed" }
 npm.cmd install
+if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 ```
 
 Restart Node-RED after the install command has finished.
@@ -87,7 +101,15 @@ If Node-RED runs as a Windows service, restart that service.
 
 ## Log location
 
-The default debug log is based on Node.js `os.tmpdir()`:
+File logging is opt-in. No `authdbg.jsonl` file is written unless you set `APPLESTRUDEL_AUTH_DEBUG_DIR` or `APPLESTRUDEL_AUTH_DEBUG_LOG` before starting Node-RED.
+
+If you set only `APPLESTRUDEL_AUTH_DEBUG_DIR`, the log file is `authdbg.jsonl` inside that directory. This is the recommended setup.
+
+If you set only `APPLESTRUDEL_AUTH_DEBUG_LOG`, that exact file path is used.
+
+If you set both variables, `APPLESTRUDEL_AUTH_DEBUG_LOG` defines the actual file path. Use both only if you really need a custom file name.
+
+Without overrides, the collector's default lookup path is based on Node.js `os.tmpdir()`:
 
 ```sh
 node -e "const os=require('os'),path=require('path'); console.log(path.join(os.tmpdir(),'applestrudel-auth-debug','authdbg.jsonl'))"
@@ -95,22 +117,18 @@ node -e "const os=require('os'),path=require('path'); console.log(path.join(os.t
 
 Run this command inside the same environment that starts Node-RED. In many Linux containers this prints `/tmp/applestrudel-auth-debug/authdbg.jsonl`; on Windows it usually prints a path below `%TEMP%`.
 
-The collector uses the same default path. You normally do not need to change it.
-
-Only override the location if you know that the default temp directory is not suitable.
+For a debug run, set one explicit debug directory before starting Node-RED.
 
 Linux/macOS/Docker/Home Assistant:
 
 ```sh
 export APPLESTRUDEL_AUTH_DEBUG_DIR=/tmp/applestrudel-auth-debug
-export APPLESTRUDEL_AUTH_DEBUG_LOG=/tmp/applestrudel-auth-debug/authdbg.jsonl
 ```
 
 Windows PowerShell:
 
 ```powershell
 $env:APPLESTRUDEL_AUTH_DEBUG_DIR="$env:TEMP\applestrudel-auth-debug"
-$env:APPLESTRUDEL_AUTH_DEBUG_LOG="$env:TEMP\applestrudel-auth-debug\authdbg.jsonl"
 ```
 
 Set these variables before starting Node-RED.
@@ -139,30 +157,54 @@ Do not share anything after `?` or `#` from a browser URL.
 After reproducing the issue, run this in the Node-RED user directory:
 
 ```sh
-./node_modules/.bin/applestrudel-auth-debug-collect --out /tmp
+set -e
+test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /tmp
 ```
 
-## Collect a sanitized bundle in Docker or Home Assistant
+## Collect a sanitized bundle in Docker
 
-Run the collector inside the Node-RED container or add-on shell, in the Node-RED user directory.
+Run the collector inside the Node-RED container, in the Node-RED user directory.
 
-For many Node-RED containers and Home Assistant add-ons this directory is `/data`.
+For many Node-RED containers this directory is `/data`.
 
 Collect to `/data` so the generated bundle is in the persistent Node-RED user directory:
 
 ```sh
+set -e
 cd /data
-./node_modules/.bin/applestrudel-auth-debug-collect --out /data
+test -f package.json
+test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /data
 ```
 
 If you use plain Docker from the host, copy the generated archive from the container after the collector has printed `tarFile=...`.
+
+## Collect a sanitized bundle in Home Assistant
+
+Run the collector inside the Node-RED add-on shell, in the Node-RED user directory.
+
+For the Home Assistant Community add-on this directory is often `/config`:
+
+```sh
+set -e
+cd /config
+test -f package.json
+test -n "$APPLESTRUDEL_AUTH_DEBUG_DIR"
+./node_modules/.bin/applestrudel-auth-debug-collect --log "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl" --out /config
+```
 
 ## Collect a sanitized bundle on Windows PowerShell
 
 After reproducing the issue, run this in the Node-RED user directory:
 
 ```powershell
-.\node_modules\.bin\applestrudel-auth-debug-collect.cmd --out "$env:TEMP"
+$ErrorActionPreference = "Stop"
+if (-not $env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
+  throw "APPLESTRUDEL_AUTH_DEBUG_DIR is not set; set it before starting Node-RED and before running the collector"
+}
+.\node_modules\.bin\applestrudel-auth-debug-collect.cmd --log "$env:APPLESTRUDEL_AUTH_DEBUG_DIR\authdbg.jsonl" --out "$env:TEMP"
+if ($LASTEXITCODE -ne 0) { throw "collector failed" }
 ```
 
 The collector prints:
@@ -185,7 +227,11 @@ Share:
 7. The final browser origin and path only. Remove the entire query string and fragment.
 8. The visible browser message.
 
+Do not share raw `authdbg.jsonl`, terminal output, full browser URLs, query strings, fragments, cookies, tokens, passwords, SMS codes, or screenshots containing those values.
+
 Check the generated files locally before sharing them. The collector masks known auth values again, but local paths and environment details can still be sensitive in some environments.
+
+Before uploading, search the generated bundle locally for suspicious leftovers such as `?`, `#`, `://`, `code=`, `state=`, `cookie`, `token`, `session`, `csrf`, and your email address. If you find anything sensitive, redact it first.
 
 ## Restore after the debug run
 
@@ -194,24 +240,56 @@ Restore the package files you backed up before installing the debug build.
 Linux, macOS, Docker, or Home Assistant:
 
 ```sh
+set -e
+had_lock=0
+if [ -f package-lock.json.auth-debug-backup ]; then had_lock=1; fi
 cp package.json.auth-debug-backup package.json
 if [ -f package-lock.json.auth-debug-backup ]; then cp package-lock.json.auth-debug-backup package-lock.json; else rm -f package-lock.json; fi
 npm install
+if [ "$had_lock" -eq 0 ]; then rm -f package-lock.json; fi
 rm -f package.json.auth-debug-backup package-lock.json.auth-debug-backup
 ```
 
 Windows PowerShell:
 
 ```powershell
+$ErrorActionPreference = "Stop"
+$hadLock = Test-Path package-lock.json.auth-debug-backup
 Copy-Item package.json.auth-debug-backup package.json
-if (Test-Path package-lock.json.auth-debug-backup) {
+if ($hadLock) {
   Copy-Item package-lock.json.auth-debug-backup package-lock.json
 } elseif (Test-Path package-lock.json) {
   Remove-Item package-lock.json
 }
 npm.cmd install
+if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+if (-not $hadLock -and (Test-Path package-lock.json)) {
+  Remove-Item package-lock.json
+}
 Remove-Item package.json.auth-debug-backup
 if (Test-Path package-lock.json.auth-debug-backup) { Remove-Item package-lock.json.auth-debug-backup }
 ```
 
 Restart Node-RED again after restoring the previous package state.
+
+## Remove temporary debug artifacts
+
+After the bundle has been handed over and you no longer need local diagnostics, remove the temporary debug artifacts from the machine where Node-RED ran.
+
+Linux, macOS, Docker, or Home Assistant:
+
+```sh
+if [ -n "$APPLESTRUDEL_AUTH_DEBUG_DIR" ]; then
+  rm -f "$APPLESTRUDEL_AUTH_DEBUG_DIR/authdbg.jsonl"
+fi
+```
+
+Windows PowerShell:
+
+```powershell
+if ($env:APPLESTRUDEL_AUTH_DEBUG_DIR) {
+  Remove-Item -LiteralPath "$env:APPLESTRUDEL_AUTH_DEBUG_DIR\authdbg.jsonl" -ErrorAction SilentlyContinue
+}
+```
+
+Also delete the generated `bundleDir=...` directory and the `tarFile=...` or zip file after the issue no longer needs them.

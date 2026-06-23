@@ -6,7 +6,6 @@ const os = require('os');
 const path = require('path');
 
 const DEFAULT_LOG_PATH = path.join(os.tmpdir(), 'applestrudel-auth-debug', 'authdbg.jsonl');
-const LEGACY_CT103_LOG_PATH = path.join(os.tmpdir(), 'ct103-auth-observe', 'authdbg.jsonl');
 
 function usage() {
 	return [
@@ -47,7 +46,7 @@ function parseArgs(argv) {
 	}
 
 	if (!args.logPath) {
-		args.logPath = fs.existsSync(DEFAULT_LOG_PATH) || !fs.existsSync(LEGACY_CT103_LOG_PATH) ? DEFAULT_LOG_PATH : LEGACY_CT103_LOG_PATH;
+		args.logPath = DEFAULT_LOG_PATH;
 	}
 
 	return args;
@@ -55,8 +54,7 @@ function parseArgs(argv) {
 
 function sensitiveKey(key) {
 	const text = String(key || '');
-	if (/cookieFile/i.test(text)) return false;
-	return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)/i.test(text);
+	return /(loginCookie|localCookie|^cookie$|Cookie$|set-cookie|token|access_token|refresh_token|source_token|authorization|openid(?:\.|_|$)|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|^serial$|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)/i.test(text);
 }
 
 function maskJsonValue(value, key = '') {
@@ -82,9 +80,9 @@ function sanitizeJsonLine(line) {
 
 function sanitizeText(value) {
 	return String(value).split(/\r?\n/).map(line => sanitizeJsonLine(line) || line).join('\n')
-		.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
-		.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
-		.replace(/\b(?:authorization_code|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
+		.replace(/("(?:loginCookie|localCookie|cookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)"\s*:\s*)"([^"\\]|\\.)*"/gi, '$1"[AUTHDBG_MASKED]"')
+		.replace(/((?:loginCookie|localCookie|Cookie|set-cookie|authorization|openid(?:\.[A-Za-z0-9_.-]+)?|authorization_code|accessToken|refreshToken|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)\s*[:=]\s*)([^"'\n\r,;}]+)/gi, '$1[AUTHDBG_MASKED]')
+		.replace(/\b(?:authorization_code|openid\.[A-Za-z0-9_.-]+|access_token|refresh_token|source_token|X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token|csrf|frc|map-md|macDms|deviceId|deviceSerial|deviceSerialNumber|serialNumber|serial|customerId|applianceId|entityId|email|cookieFile|verifier|password|secret|session)=([^;,&\s"'}]+)/gi, '[AUTHDBG_FIELD_MASKED]')
 		.replace(/\b((?:session-id(?:-time)?|session-token|csm-hit|ubid-[A-Za-z0-9-]+|x-[A-Za-z0-9-]+|at-[A-Za-z0-9-]+|sess-at-[A-Za-z0-9-]+|lc-[A-Za-z0-9-]+|i18n-prefs))=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]')
 		.replace(/\b(Atza\|)[A-Za-z0-9._~+/=-]+/g, '$1[AUTHDBG_MASKED]')
 		.replace(/\b(X-Amz-[A-Za-z0-9-]+)=([^;,&\s"'}]+)/gi, '$1=[AUTHDBG_MASKED]');

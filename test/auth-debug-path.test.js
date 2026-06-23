@@ -82,12 +82,12 @@ function createAccount(env) {
 	}
 }
 
-function testDefaultDebugPathIsGeneric() {
+function testAuthDebugFileLoggingIsOptIn() {
 	const account = createAccount({});
-	const expectedDir = path.join(os.tmpdir(), 'applestrudel-auth-debug');
 
-	assert.strictEqual(account.authDebugLogDir, expectedDir);
-	assert.strictEqual(account.authDebugLogFile, path.join(expectedDir, 'authdbg.jsonl'));
+	assert.strictEqual(account.authDebugEnabled, false);
+	assert.strictEqual(account.authDebugLogDir, null);
+	assert.strictEqual(account.authDebugLogFile, null);
 }
 
 function testDebugDirCanBeOverridden() {
@@ -98,6 +98,7 @@ function testDebugDirCanBeOverridden() {
 
 	assert.strictEqual(account.authDebugLogDir, customDir);
 	assert.strictEqual(account.authDebugLogFile, path.join(customDir, 'authdbg.jsonl'));
+	assert.strictEqual(account.authDebugEnabled, true);
 }
 
 function testDebugLogCanBeOverridden() {
@@ -108,6 +109,20 @@ function testDebugLogCanBeOverridden() {
 
 	assert.strictEqual(account.authDebugLogDir, path.dirname(customLog));
 	assert.strictEqual(account.authDebugLogFile, customLog);
+	assert.strictEqual(account.authDebugEnabled, true);
+}
+
+function testDebugLogOverrideDefinesWriteDirectory() {
+	const customDir = path.join(os.tmpdir(), 'custom-applestrudel-auth-debug-dir');
+	const customLog = path.join(os.tmpdir(), 'custom-applestrudel-auth-debug-log', 'custom.jsonl');
+	const account = createAccount({
+		APPLESTRUDEL_AUTH_DEBUG_DIR: customDir,
+		APPLESTRUDEL_AUTH_DEBUG_LOG: customLog,
+	});
+
+	assert.strictEqual(account.authDebugLogDir, path.dirname(customLog));
+	assert.strictEqual(account.authDebugLogFile, customLog);
+	assert.strictEqual(account.authDebugEnabled, true);
 }
 
 function testAuthDebugWriteSanitizesFreeTextValues() {
@@ -119,8 +134,16 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 
 	account.authDebugWrite('test.freeText', {
 		message: 'Cookie: session-id=secret-session; csrf=secret-csrf',
-		url: 'https://example.invalid/callback?access_token=secret-access&safe=visible',
+		url: 'https://example.invalid/callback?access_token=secret-access&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail%40example.invalid&safe=visible',
+		openidUrl: 'https://example.invalid/maplanding?openid.claimed_id=secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial',
 		macDms: 'secret-macdms',
+		cookieFile: 'C:\\Users\\secret-user\\auth\\cookie.json',
+		email: 'secret-mail@example.invalid',
+		customerId: 'secret-customer',
+		serialNumber: 'secret-serial-number',
+		deviceSerialNumber: 'secret-device-serial-number',
+		applianceId: 'secret-appliance',
+		entityId: 'secret-entity',
 		safe: 'visible',
 	});
 
@@ -129,6 +152,18 @@ function testAuthDebugWriteSanitizesFreeTextValues() {
 	assert(!log.includes('secret-csrf'), 'csrf value leaked');
 	assert(!log.includes('secret-access'), 'access token leaked');
 	assert(!log.includes('secret-macdms'), 'macDms value leaked');
+	assert(!log.includes('secret-account'), 'OpenID claimed id leaked');
+	assert(!log.includes('secret-identity'), 'OpenID identity leaked');
+	assert(!log.includes('secret-openid-signature'), 'OpenID signature leaked');
+	assert(!log.includes('secret-nonce'), 'OpenID response nonce leaked');
+	assert(!log.includes('secret-serial'), 'serial value leaked');
+	assert(!log.includes('secret-user'), 'cookie file path leaked');
+	assert(!log.includes('secret-mail'), 'email value leaked');
+	assert(!log.includes('secret-customer'), 'customer id leaked');
+	assert(!log.includes('secret-device'), 'device id leaked');
+	assert(!log.includes('secret-serial-number'), 'serial number leaked');
+	assert(!log.includes('secret-appliance'), 'appliance id leaked');
+	assert(!log.includes('secret-entity'), 'entity id leaked');
 	assert(log.includes('visible'), 'safe value should remain visible');
 }
 
@@ -154,9 +189,10 @@ function testAuthDebugLoggerSanitizesNestedJsonValues() {
 	assert(log.includes('visible'), 'safe value should remain visible');
 }
 
-testDefaultDebugPathIsGeneric();
+testAuthDebugFileLoggingIsOptIn();
 testDebugDirCanBeOverridden();
 testDebugLogCanBeOverridden();
+testDebugLogOverrideDefinesWriteDirectory();
 testAuthDebugWriteSanitizesFreeTextValues();
 testAuthDebugLoggerSanitizesNestedJsonValues();
 console.log('auth-debug-path tests passed');

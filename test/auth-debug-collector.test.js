@@ -23,8 +23,9 @@ function testCollectorCreatesSanitizedBundle() {
 
 	fs.writeFileSync(logPath, [
 		'{"line":"Cookie: session-id=1234567890; csrf=secret-csrf; at-main=secret-at-cookie"}',
-		'{"details":{"authorization_code":"secret-code","refreshToken":"secret-refresh","macDms":"secret-macdms","safe":"visible"}}',
+		'{"details":{"authorization_code":"secret-code","refreshToken":"secret-refresh","macDms":"secret-macdms","cookieFile":"C:\\\\Users\\\\secret-user\\\\auth\\\\cookie.json","email":"secret-mail@example.invalid","customerId":"secret-customer","serialNumber":"secret-serial-number","deviceSerialNumber":"secret-device-serial-number","applianceId":"secret-appliance","entityId":"secret-entity","safe":"visible"}}',
 		'{"headers":{"authorization":["Bearer nested-secret"],"set-cookie":["session-id=nested-session; csrf=nested-csrf"]}}',
+		'{"url":"http://127.0.0.1:3456/www.amazon.de/ap/maplanding?openid.claimed_id=https%3A%2F%2Fwww.amazon.de%2Fap%2Fid%2Famzn1.account.secret-account&openid.identity=secret-identity&openid.sig=secret-openid-signature&openid.response_nonce=secret-nonce&serial=secret-serial&customerId=secret-customer-url&deviceSerialNumber=secret-device-url&email=secret-mail-url%40example.invalid"}',
 		'plain Atza|SECRETACCESS X-Amz-Signature=abcdef123456',
 	].join('\n'), 'utf8');
 
@@ -48,11 +49,23 @@ function testCollectorCreatesSanitizedBundle() {
 	assert(!bundleLog.includes('nested-secret'), 'nested authorization value leaked');
 	assert(!bundleLog.includes('nested-session'), 'nested session value leaked');
 	assert(!bundleLog.includes('nested-csrf'), 'nested csrf value leaked');
+	assert(!bundleLog.includes('secret-account'), 'OpenID claimed id leaked');
+	assert(!bundleLog.includes('secret-identity'), 'OpenID identity leaked');
+	assert(!bundleLog.includes('secret-openid-signature'), 'OpenID signature leaked');
+	assert(!bundleLog.includes('secret-nonce'), 'OpenID response nonce leaked');
+	assert(!bundleLog.includes('secret-serial'), 'serial value leaked');
+	assert(!bundleLog.includes('secret-user'), 'cookie file path leaked');
+	assert(!bundleLog.includes('secret-mail'), 'email value leaked');
+	assert(!bundleLog.includes('secret-customer'), 'customer id leaked');
+	assert(!bundleLog.includes('secret-device'), 'device id leaked');
+	assert(!bundleLog.includes('secret-serial-number'), 'serial number leaked');
+	assert(!bundleLog.includes('secret-appliance'), 'appliance id leaked');
+	assert(!bundleLog.includes('secret-entity'), 'entity id leaked');
 	assert(!bundleLog.includes('SECRETACCESS'), 'Atza token leaked');
 	assert(!bundleLog.includes('abcdef123456'), 'AWS signature leaked');
 	assert(bundleLog.includes('visible'), 'safe field should remain visible');
 	assert.strictEqual(summary.input.logFileName, 'authdbg.jsonl');
-	assert.strictEqual(summary.input.lineCount, 4);
+	assert.strictEqual(summary.input.lineCount, 5);
 	assert.strictEqual(summary.output.tarCreated, false);
 	assert(readme.includes('authdbg.jsonl'));
 }
