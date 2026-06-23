@@ -56,12 +56,15 @@ cd "$env:USERPROFILE\.node-red"
 
 Then install the debug packages:
 
+Use `npm.cmd` in PowerShell. This avoids problems with the optional `npm.ps1` PowerShell wrapper and execution policy settings.
+If PowerShell says that `npm.cmd` was not found, close and reopen PowerShell after installing Node.js, or add the Node.js installation directory to `PATH`.
+
 ```powershell
-npm install --save `
+npm.cmd install --save `
   "https://github.com/fkhr79/node-red-contrib-alexa-remote2-applestrudel/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz" `
   "https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
-npm pkg set "overrides.alexa-cookie2=https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
-npm install
+npm.cmd pkg set "overrides.alexa-cookie2=https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
+npm.cmd install
 ```
 
 Restart Node-RED after the install command has finished.
