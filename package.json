@@ -6,10 +6,10 @@
 		"email": "bernd.bindreiter@gmail.com"
 	},
 	"contributors": [
-        {
-          "name": "fkhr79",
-          "url": "https://github.com/fkhr79"
-        },
+		{
+			"name": "fkhr79",
+			"url": "https://github.com/fkhr79"
+		},
 		{
 			"name": "Julian Wiche",
 			"url": "https://github.com/dajuly20"
@@ -55,6 +55,12 @@
 		"echo"
 	],
 	"license": "MIT",
+	"scripts": {
+		"test": "node scripts/run-tests.js"
+	},
+	"bin": {
+		"applestrudel-auth-debug-collect": "scripts/collect-auth-debug.js"
+	},
 	"node-red": {
 		"nodes": {
 			"alexa-remote-account": "nodes/alexa-remote-account.js",
@@ -76,9 +82,13 @@
 	},
 	"dependencies": {
 		"alexa-remote2": "^8.0.4",
+		"node-red-contrib-alexa-remote2-applestrudel": "file:../applestrudel-auth-debug-install-smoke2-20260624/node-red-contrib-alexa-remote2-applestrudel-5.1.0.tgz",
 		"tough-cookie": "^5.1.1"
 	},
 	"engines": {
 		"node": ">=16.0.0"
+	},
+	"overrides": {
+		"alexa-cookie2": "https://github.com/fkhr79/alexa-cookie/archive/refs/heads/test/cumulative-auth-fixes-debug.tar.gz"
 	}
 }
